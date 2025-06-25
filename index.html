@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetBoard - Painel de Gestão</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></link>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .hidden { display: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        .calendar-day { transition: all 0.2s ease; cursor: pointer; }
+        .calendar-day.disabled { color: #4b5563; cursor: not-allowed; }
+        .calendar-day.selected { background-color: #3b82f6; color: white; border-radius: 50%; }
+        .calendar-day:not(.disabled):hover { background-color: #374151; border-radius: 50%; }
+        @keyframes slideInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; } }
+        .toast-notification { animation: slideInUp 0.5s ease-out forwards, fadeOut 0.5s ease-in 3.5s forwards; }
+        
+        /* Estilos do Kanban */
+        .kanban-pet-card.dragging { opacity: 0.5; background-color: #4b5563; }
+        .selection-mode .kanban-pet-card,
+        .add-to-group-mode .ungrouped-list .kanban-pet-card {
+            cursor: pointer;
+        }
+        .kanban-pet-card.selected-for-grouping {
+            box-shadow: 0 0 0 3px #3b82f6;
+            border-color: #3b82f6 !important;
+        }
+        .group-container.add-to-group-mode {
+            border-color: #3b82f6;
+        }
+        
+        /* Estilos de Status (Aplicados dinamicamente) */
+        .status-buscando { border-left: 5px solid #f59e0b; } /* Amarelo/Laranja */
+        .status-coletado { border-left: 5px solid #10b981; } /* Verde/Esmeralda */
+
+        /* Botões de status otimizados para toque */
+        .status-controls { display: flex; align-items: center; gap: 4px; }
+        .status-btn { 
+            background: transparent;
+            border: none; 
+            color: #9ca3af; /* gray-400 */
+            cursor: pointer; 
+            transition: all 0.2s ease-in-out;
+            font-size: 1rem; /* 16px */
+            padding: 0.5rem; /* 8px */
+            border-radius: 9999px; /* fully rounded */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .status-btn:hover { 
+            color: #e5e7eb; /* gray-200 */
+            background-color: #374151; /* gray-700 */
+        }
+        .status-btn.active { 
+            color: #3b82f6; /* blue-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 antialiased">
+
+    <!-- Tela de Login -->
+    <div id="login-screen" class="flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-sm p-8 space-y-6 bg-gray-800 rounded-xl shadow-2xl shadow-black/30">
+            <div class="text-center">
+                <i class="fas fa-paw text-4xl text-blue-500"></i>
+                <h1 class="text-3xl font-bold text-white mt-2">PetBoard</h1>
+                <p class="text-gray-400">Acesse seu painel de gestão</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <input id="email" type="email" required class="w-full px-4 py-2 mt-1 text-gray-200 bg-gray-700 border border-gray-600 rounded-lg" placeholder="seu@email.com">
+                <input id="password" type="password" required class="w-full px-4 py-2 mt-1 text-gray-200 bg-gray-700 border border-gray-600 rounded-lg" placeholder="********">
+                <button type="submit" class="w-full px-4 py-2 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Entrar</button>
+            </form>
+            <p id="login-error" class="text-sm text-center text-red-500"></p>
+        </div>
+    </div>
+
+    <!-- Painel Principal da Aplicação -->
+    <main id="app-screen" class="hidden flex flex-col h-screen">
+        <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center flex-shrink-0">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-paw text-2xl text-blue-500"></i>
+                <h1 class="text-2xl font-bold text-white">PetBoard</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="view-toggle-btn" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"><i class="fas fa-address-card mr-2"></i>Ver Cards</button>
+                <div class="text-right">
+                    <p class="text-sm text-gray-400">Logado como</p>
+                    <p id="user-email" class="font-medium text-white"></p>
+                </div>
+                <button id="logout-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+        </header>
+
+        <!-- Container do Kanban (Tela Principal) -->
+        <div id="kanban-view" class="hidden flex-grow flex flex-col">
+            <div class="p-4 bg-gray-800/50 border-y border-gray-700 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 flex-shrink-0">
+                 <h2 class="text-2xl font-bold text-white">Painel do Dia</h2>
+                <div>
+                    <label for="date-filter" class="text-sm font-medium text-gray-400">Data:</label>
+                    <input type="date" id="date-filter" class="p-2 border bg-gray-700 border-gray-600 rounded-lg">
+                </div>
+                <div>
+                    <label for="kanban-route-filter" class="text-sm font-medium text-gray-400">Filtrar Rota:</label>
+                    <select id="kanban-route-filter" class="p-2 bg-gray-700 border border-gray-600 rounded-lg">
+                        <option value="all">Todas as Rotas</option>
+                        <option value="rota_1">Rota 1</option>
+                        <option value="rota_2">Rota 2</option>
+                        <option value="rota_3">Rota 3</option>
+                        <option value="avulso">Avulso</option>
+                    </select>
+                </div>
+                <button id="add-observation-btn" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"><i class="fas fa-comment-alt mr-2"></i>Observações</button>
+            </div>
+            <div id="kanban-board" class="flex-grow p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto">
+                <!-- Colunas do Kanban serão inseridas aqui -->
+            </div>
+        </div>
+        
+        <!-- Container de Cards (Tela Secundária) -->
+        <div id="fichas-view" class="hidden flex-grow p-4 md:p-6 lg:p-8">
+             <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                <h2 class="text-3xl font-bold text-white">Cards de Agendamento</h2>
+                <div class="flex items-center gap-4 flex-wrap">
+                    <input type="search" id="search-fichas-input" placeholder="Buscar pet ou tutor..." class="w-64 p-2 bg-gray-700 border border-gray-600 rounded-lg">
+                    <select id="filter-fichas-route" class="p-2 bg-gray-700 border border-gray-600 rounded-lg">
+                        <option value="all">Todas as Rotas</option>
+                        <option value="rota_1">Rota 1</option>
+                        <option value="rota_2">Rota 2</option>
+                        <option value="rota_3">Rota 3</option>
+                        <option value="avulso">Avulso</option>
+                    </select>
+                    <button id="add-new-ficha-btn" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-lg"><i class="fas fa-plus mr-2"></i>Novo Card</button>
+                </div>
+            </div>
+            <div id="fichas-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Cards de agendamento serão inseridos aqui -->
+            </div>
+        </div>
+
+    </main>
+    
+    <!-- Modal: Formulário de Card de Agendamento -->
+    <div id="ficha-form-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-30">
+        <div class="bg-gray-800 rounded-xl shadow-2xl shadow-black/50 w-full max-w-4xl h-[95vh] flex flex-col fade-in">
+            <form id="ficha-form" class="flex flex-col h-full">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h2 id="ficha-form-title" class="text-2xl font-bold text-white">Novo Card</h2>
+                    <button type="button" id="close-ficha-form-modal-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <div class="flex-grow overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Coluna 1: Dados Essenciais -->
+                    <div class="space-y-6">
+                        <input type="hidden" id="fichaId">
+                        <div>
+                             <label for="nomePet" class="block text-sm font-medium text-gray-400">Nome do Pet</label>
+                            <input type="text" id="nomePet" required class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="nomeTutor" class="block text-sm font-medium text-gray-400">Nome do Tutor</label>
+                            <input type="text" id="nomeTutor" required class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="telefone" class="block text-sm font-medium text-gray-400">Telefone</label>
+                            <input type="tel" id="telefone" class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="endereco" class="block text-sm font-medium text-gray-400">Endereço</label>
+                            <textarea id="endereco" rows="3" class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400">Rota Padrão Designada</label>
+                            <select id="rotaDesignada" class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
+                                <option value="rota_1">Rota 1</option>
+                                <option value="rota_2">Rota 2</option>
+                                <option value="rota_3">Rota 3</option>
+                                <option value="avulso">Avulso</option>
+                            </select>
+                        </div>
+                         <div>
+                            <label class="block text-sm font-medium text-gray-400">Serviços</label>
+                            <div id="tipoServico-checkboxes" class="grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
+                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Banho" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Banho</label>
+                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Creche" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Creche</label>
+                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Hotel" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Hotel</label>
+                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Clínica" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Clínica</label>
+                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Outros" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Outros</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Coluna 2: Calendário de Agendamento -->
+                    <div class="space-y-4">
+                        <h3 class="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Dias de Agendamento</h3>
+                        <div id="calendar-container" class="bg-gray-900/50 p-4 rounded-lg">
+                            <div class="flex items-center justify-between mb-4">
+                                <button type="button" id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-700"><i class="fas fa-chevron-left"></i></button>
+                                <h4 id="calendar-header" class="text-lg font-semibold"></h4>
+                                <button type="button" id="next-month-btn" class="p-2 rounded-full hover:bg-gray-700"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                             <div class="grid grid-cols-7 gap-1 text-center font-medium text-xs text-gray-500 mb-2">
+                                <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                            </div>
+                            <div id="calendar-grid" class="grid grid-cols-7 gap-1 text-center"></div>
+                        </div>
+                        <p class="text-sm text-gray-400"><span id="scheduled-dates-count">0</span> dias agendados.</p>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-900/50 border-t border-gray-700 flex justify-between items-center">
+                    <button type="button" id="delete-ficha-btn" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 hidden"><i class="fas fa-trash-alt mr-2"></i>Excluir Card</button>
+                    <div class="flex items-center">
+                        <button type="submit" id="save-ficha-btn" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed flex items-center justify-center min-w-[150px]">
+                           {/* O texto será definido via JS */}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal: Detalhes do Card no Kanban -->
+    <div id="kanban-detail-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
+        <div class="bg-gray-800 rounded-xl shadow-2xl shadow-black/50 w-full max-w-md fade-in">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-white">Detalhes do Agendamento</h2>
+                <button id="close-kanban-detail-modal-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div id="kanban-detail-content" class="p-6 space-y-4">
+                <!-- Conteúdo dos detalhes será inserido aqui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Observação da Rota -->
+     <div id="observation-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
+        <div class="bg-gray-800 rounded-xl shadow-2xl shadow-black/50 w-full max-w-lg fade-in">
+            <form id="observation-form">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-white">Adicionar Observação na Rota</h2>
+                    <button type="button" id="close-observation-modal-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <div class="p-6 space-y-4">
+                     <div>
+                        <label for="observation-route-select" class="block text-sm font-medium text-gray-400">Rota</label>
+                        <select id="observation-route-select" required class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
+                            <option value="rota_1">Rota 1</option>
+                            <option value="rota_2">Rota 2</option>
+                            <option value="rota_3">Rota 3</option>
+                            <option value="avulso">Avulso</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="observation-text" class="block text-sm font-medium text-gray-400">Observação</label>
+                        <textarea id="observation-text" required rows="4" class="w-full p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg" placeholder="Ex: Comprar bexiga azul e amarela..."></textarea>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-900/50 border-t border-gray-700 flex justify-end">
+                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar Observação</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Container para Toast Notifications -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, enableIndexedDbPersistence, collection, doc, addDoc, setDoc, getDoc, onSnapshot, deleteDoc, query, where, updateDoc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCKOXqvwo9wA7pMDdoLMMtUiQSKDW9bygU",
+            authDomain: "taxidog-593d8.firebaseapp.com",
+            projectId: "taxidog-593d8",
+            storageBucket: "taxidog-593d8.appspot.com",
+            messagingSenderId: "419627111718",
+            appId: "1:419627111718:web:805c187a118d199aa9dde7",
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // --- SELEÇÃO DE ELEMENTOS DA UI ---
+        const loginScreen = document.getElementById('login-screen');
+        const appScreen = document.getElementById('app-screen');
+        const userEmailDisplay = document.getElementById('user-email');
+        const fichasView = document.getElementById('fichas-view');
+        const kanbanView = document.getElementById('kanban-view');
+        const viewToggleBtn = document.getElementById('view-toggle-btn');
+        const kanbanBoard = document.getElementById('kanban-board');
+        const dateFilter = document.getElementById('date-filter');
+        const kanbanRouteFilter = document.getElementById('kanban-route-filter');
+        const addNewFichaBtn = document.getElementById('add-new-ficha-btn');
+        const fichasListContainer = document.getElementById('fichas-list-container');
+        const fichaFormModal = document.getElementById('ficha-form-modal');
+        const fichaForm = document.getElementById('ficha-form');
+        const fichaFormTitle = document.getElementById('ficha-form-title');
+        const closeFichaFormModalBtn = document.getElementById('close-ficha-form-modal-btn');
+        const calendarGrid = document.getElementById('calendar-grid');
+        const calendarHeader = document.getElementById('calendar-header');
+        const prevMonthBtn = document.getElementById('prev-month-btn');
+        const nextMonthBtn = document.getElementById('next-month-btn');
+        const scheduledDatesCount = document.getElementById('scheduled-dates-count');
+        const deleteFichaBtn = document.getElementById('delete-ficha-btn');
+        const searchFichasInput = document.getElementById('search-fichas-input');
+        const filterFichasRoute = document.getElementById('filter-fichas-route');
+        const kanbanDetailModal = document.getElementById('kanban-detail-modal');
+        const addObservationBtn = document.getElementById('add-observation-btn');
+        const observationModal = document.getElementById('observation-modal');
+
+        // --- ESTADO DA APLICAÇÃO ---
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+        let scheduledDates = [];
+        let unsubscribeFichasListener = null;
+        let unsubscribeKanbanListener = null;
+        let allFichas = []; 
+        let draggedFichaId = null;
+
+        // --- FUNÇÕES DE LÓGICA ---
+
+        function showToast(message, isSuccess = true) {
+            const toastContainer = document.getElementById('toast-container');
+            const bgColor = isSuccess ? 'bg-green-600' : 'bg-red-600';
+            const icon = isSuccess ? 'fa-check-circle' : 'fa-times-circle';
+            const toast = document.createElement('div');
+            toast.className = `toast-notification p-4 rounded-lg text-white shadow-lg flex items-center ${bgColor}`;
+            toast.innerHTML = `<i class="fas ${icon} mr-3"></i> ${message}`;
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 3500);
+        }
+
+        function toggleViews(showKanban) {
+            if (showKanban) {
+                fichasView.classList.add('hidden');
+                kanbanView.classList.remove('hidden');
+                kanbanView.classList.add('flex');
+                viewToggleBtn.innerHTML = `<i class="fas fa-address-card mr-2"></i>Ver Cards`;
+                
+                const today = new Date().toISOString().split('T')[0];
+                dateFilter.value = today;
+                renderKanbanBoard();
+                fetchAndDisplayKanbanData(today);
+            } else {
+                kanbanView.classList.add('hidden');
+                kanbanView.classList.remove('flex');
+                fichasView.classList.remove('hidden');
+                viewToggleBtn.innerHTML = `<i class="fas fa-columns mr-2"></i>Ver Painel do Dia`;
+                loadFichas();
+            }
+        }
+        
+        // KANBAN
+        async function updatePetStatus(fichaId, date, status) {
+            const fichaRef = doc(db, "fichas", fichaId);
+            try {
+                const statusUpdate = {};
+                statusUpdate[`statusPorData.${date}`] = status;
+                await updateDoc(fichaRef, statusUpdate);
+            } catch (error) {
+                console.error("Erro ao atualizar status do pet:", error);
+                showToast("Falha ao atualizar status.", false);
+            }
+        }
+
+        function fetchAndDisplayKanbanData(selectedDate) {
+            if (unsubscribeKanbanListener) unsubscribeKanbanListener();
+            
+            const q = query(collection(db, "fichas"), where("datasAgendadas", "array-contains", selectedDate));
+
+            unsubscribeKanbanListener = onSnapshot(q, (querySnapshot) => {
+                const scheduledFichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderKanbanLists(scheduledFichas, selectedDate);
+            });
+
+            const obsDocRef = doc(db, "rotas", selectedDate);
+            onSnapshot(obsDocRef, (docSnap) => {
+                const observations = docSnap.data() || {};
+                document.querySelectorAll('.observation-display').forEach(el => {
+                    const routeId = el.dataset.routeId;
+                    el.textContent = observations[routeId] || '';
+                    el.classList.toggle('hidden', !observations[routeId]);
+                });
+            });
+        }
+        
+        function renderKanbanLists(fichas, currentDate) {
+             document.querySelectorAll('.group-container').forEach(list => list.innerHTML = '');
+            
+            const fichasByRouteAndGroup = fichas.reduce((acc, ficha) => {
+                const route = ficha.rotaDesignada || 'rota_1';
+                const group = ficha.grupo || 'Não Agrupados';
+                if (!acc[route]) acc[route] = {};
+                if (!acc[route][group]) acc[route][group] = [];
+                acc[route][group].push(ficha);
+                return acc;
+            }, {});
+
+            for (const routeId in fichasByRouteAndGroup) {
+                const groupContainer = document.getElementById(`groups-${routeId}`);
+                if (!groupContainer) continue;
+
+                groupContainer.innerHTML = ''; 
+
+                Object.keys(fichasByRouteAndGroup[routeId]).sort((a, b) => {
+                    if (a === 'Não Agrupados') return 1;
+                    if (b === 'Não Agrupados') return -1;
+                    return a.localeCompare(b);
+                }).forEach(groupName => {
+                    const groupFichas = fichasByRouteAndGroup[routeId][groupName].sort((a,b) => (a.ordem || 0) - (b.ordem || 0));
+
+                    const groupEl = document.createElement('div');
+                    groupEl.className = 'bg-gray-900/50 p-2 rounded-md border border-dashed border-gray-700';
+                    
+                    let headerHTML = `<h3 class="font-semibold text-sm text-gray-300 mb-2">${groupName}</h3>`;
+                    if(groupName !== 'Não Agrupados') {
+                        headerHTML = `<div class="flex justify-between items-center mb-2">
+                                          <h3 class="font-semibold text-sm text-gray-300">${groupName}</h3>
+                                           <div class="flex items-center gap-2">
+                                                <button data-route-id="${routeId}" data-group-name="${groupName}" class="add-to-group-btn text-xs text-blue-400 hover:text-blue-300"><i class="fas fa-plus"></i> Adicionar</button>
+                                                <button data-route-id="${routeId}" data-group-name="${groupName}" class="ungroup-btn text-xs text-red-400 hover:text-red-300">&times; Desagrupar</button>
+                                          </div>
+                                      </div>`;
+                    }
+                    groupEl.innerHTML = headerHTML + `<div class="card-list space-y-2" data-route-id="${routeId}" data-group-name="${groupName}"></div>`;
+                    
+                    const cardListEl = groupEl.querySelector('.card-list');
+                    groupFichas.forEach(ficha => {
+                        renderKanbanPetCard(cardListEl, ficha, currentDate);
+                    });
+                    
+                    groupContainer.appendChild(groupEl);
+                });
+            }
+            handleKanbanRouteFilter();
+        }
+
+        function renderKanbanPetCard(cardListEl, ficha, currentDate) {
+            const cardColorClasses = getCardColorClasses(ficha.tipoServico);
+            const routeId = ficha.rotaDesignada;
+            
+            const status = ficha.statusPorData?.[currentDate] || 'pendente';
+            let statusClass = '';
+            
+            if (routeId === 'avulso') {
+                if (status === 'buscando') statusClass = 'status-buscando';
+                else if (status === 'coletado') statusClass = 'status-coletado';
+            }
+
+            const cardEl = document.createElement('div');
+            cardEl.id = `kanban-card-${ficha.id}`;
+            cardEl.dataset.fichaId = ficha.id;
+            cardEl.className = `${cardColorClasses} ${statusClass} kanban-pet-card p-3 rounded-lg shadow-sm border cursor-grab hover:border-blue-500`;
+            cardEl.draggable = true;
+
+            const statusControlsHTML = routeId === 'avulso' ? `
+                <div class="status-controls" data-ficha-id="${ficha.id}">
+                    <button title="Buscando" class="status-btn ${status === 'buscando' ? 'active' : ''}" data-status="buscando"><i class="fas fa-motorcycle"></i></button>
+                    <button title="Coletado" class="status-btn ${status === 'coletado' ? 'active' : ''}" data-status="coletado"><i class="fas fa-check-double"></i></button>
+                    <button title="Resetar Status" class="status-btn" data-status="pendente"><i class="fas fa-times"></i></button>
+                </div>
+            ` : '';
+
+            cardEl.innerHTML = `
+                <div class="flex justify-between items-start w-full">
+                    <p class="font-bold text-white pointer-events-none mr-2">${ficha.nomePet}</p>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <i class="fas fa-info-circle text-gray-500 hover:text-white cursor-pointer detail-info-btn" data-current-date="${currentDate}"></i>
+                        <div class="selection-indicator hidden w-5 h-5 border-2 border-gray-400 rounded-full bg-gray-700 flex items-center justify-center">
+                            <i class="fas fa-check text-xs text-white hidden"></i>
+                        </div>
+                    </div>
+                </div>
+                ${ statusControlsHTML ? `<div class="mt-2">${statusControlsHTML}</div>` : '' }
+            `;
+            
+            cardEl.querySelector('.detail-info-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                openKanbanDetailModal(ficha, currentDate);
+            });
+
+            cardEl.addEventListener('click', (e) => {
+                if (e.target.closest('button') || e.target.closest('.detail-info-btn')) return;
+                const column = e.target.closest('.kanban-column');
+                if (column && column.classList.contains('selection-mode')) {
+                    e.stopPropagation();
+                    cardEl.classList.toggle('selected-for-grouping');
+                    cardEl.querySelector('.selection-indicator i').classList.toggle('hidden');
+                }
+            });
+            cardListEl.appendChild(cardEl);
+        }
+
+        function renderKanbanBoard() {
+            kanbanBoard.innerHTML = '';
+            const columns = [
+                { id: 'rota_1', title: 'Rota 1' }, { id: 'rota_2', title: 'Rota 2' },
+                { id: 'rota_3', title: 'Rota 3' }, { id: 'avulso', title: 'Avulso' }
+            ];
+            columns.forEach(column => {
+                const colEl = document.createElement('div');
+                colEl.className = 'kanban-column bg-gray-800 p-3 rounded-lg flex flex-col';
+                colEl.dataset.columnId = column.id;
+                colEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-lg font-bold text-white">${column.title}</h2>
+                        <button data-route-id="${column.id}" class="group-mode-btn px-2 py-1 text-xs bg-blue-600 rounded hover:bg-blue-700">Agrupar</button>
+                    </div>
+                    <div data-route-id="${column.id}" class="observation-display text-sm bg-yellow-900/50 border border-yellow-700 p-2 rounded-md mb-3 hidden whitespace-pre-wrap"></div>
+                    <div id="groups-${column.id}" class="group-container flex-grow min-h-[200px] space-y-4 p-1"></div>`;
+                kanbanBoard.appendChild(colEl);
+            });
+        }
+        
+        function handleKanbanRouteFilter() {
+            const selectedRoute = kanbanRouteFilter.value;
+            kanbanBoard.querySelectorAll('.kanban-column').forEach(col => {
+                const isVisible = selectedRoute === 'all' || col.dataset.columnId === selectedRoute;
+                col.classList.toggle('hidden', !isVisible);
+            });
+        }
+        
+        function openKanbanDetailModal(ficha, currentDate) {
+            const contentEl = document.getElementById('kanban-detail-content');
+            const serviceBadges = (ficha.tipoServico || []).map(s => `<span class="text-sm font-semibold bg-blue-500/30 text-blue-300 px-3 py-1 rounded-full">${s}</span>`).join('');
+            
+            let statusHTML = '';
+            if (ficha.rotaDesignada === 'avulso') {
+                const status = ficha.statusPorData?.[currentDate] || 'pendente';
+                let statusText = 'Pendente';
+                let statusColor = 'text-gray-400';
+                if (status === 'buscando') {
+                    statusText = 'Motorista Buscando';
+                    statusColor = 'text-yellow-400';
+                } else if (status === 'coletado') {
+                    statusText = 'Coletado';
+                    statusColor = 'text-green-400';
+                }
+                statusHTML = `<span class="font-bold ${statusColor}">${statusText}</span>`;
+            }
+
+            contentEl.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <p><strong class="text-gray-400 w-24 inline-block">Pet:</strong> <span class="font-semibold text-lg">${ficha.nomePet}</span></p>
+                    ${statusHTML}
+                </div>
+                <p><strong class="text-gray-400 w-24 inline-block">Tutor:</strong> ${ficha.nomeTutor}</p>
+                <p><strong class="text-gray-400 w-24 inline-block">Telefone:</strong> ${ficha.telefone || 'Não informado'}</p>
+                <div class="pt-2">
+                    <strong class="text-gray-400 block mb-1">Endereço:</strong>
+                    <p class="whitespace-pre-wrap pl-4 border-l-2 border-gray-600">${ficha.endereco || 'Não informado'}</p>
+                </div>
+                <div class="pt-2">
+                    <strong class="text-gray-400 block mb-2">Serviços:</strong>
+                    <div class="flex flex-wrap gap-2">
+                        ${serviceBadges || 'Nenhum'}
+                    </div>
+                </div>
+            `;
+            kanbanDetailModal.classList.replace('hidden', 'flex');
+        }
+
+        // CARDS (FICHAS)
+        function loadFichas() {
+            fichasListContainer.innerHTML = `<div class="flex justify-center items-center h-full col-span-full"><div class="spinner !border-l-blue-500"></div></div>`;
+            const q = query(collection(db, "fichas"));
+            unsubscribeFichasListener = onSnapshot(q, (querySnapshot) => {
+                allFichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderFilteredFichas();
+            });
+        }
+
+        function renderFilteredFichas() {
+            const searchTerm = searchFichasInput.value.toLowerCase();
+            const routeFilterValue = filterFichasRoute.value;
+
+            const filteredFichas = allFichas.filter(ficha => {
+                const matchesSearch = (ficha.nomePet || '').toLowerCase().includes(searchTerm) || (ficha.nomeTutor || '').toLowerCase().includes(searchTerm);
+                const matchesRoute = routeFilterValue === 'all' || ficha.rotaDesignada === routeFilterValue;
+                return matchesSearch && matchesRoute;
+            });
+            
+            fichasListContainer.innerHTML = '';
+            if (filteredFichas.length === 0) {
+                fichasListContainer.innerHTML = `<p class="text-center text-gray-400 col-span-full">Nenhum card encontrado com os filtros atuais.</p>`;
+                return;
+            }
+            filteredFichas.forEach(ficha => renderFichaCard(ficha));
+        }
+        
+        function getCardColorClasses(services = []) {
+             if (services.includes('Clínica')) return 'bg-red-800 border-red-600';
+             if (services.includes('Hotel')) return 'bg-green-800 border-green-600';
+             if (services.includes('Creche')) return 'bg-green-600 border-green-500';
+             if (services.includes('Banho')) return 'bg-purple-800 border-purple-600';
+             if (services.includes('Outros')) return 'bg-gray-700 border-gray-600';
+             return 'bg-gray-800 border-gray-700';
+        }
+
+        function renderFichaCard(ficha) {
+            const rotaColors = {
+                rota_1: 'bg-blue-500/30 text-blue-300', rota_2: 'bg-green-500/30 text-green-300',
+                rota_3: 'bg-yellow-500/30 text-yellow-300', avulso: 'bg-indigo-500/30 text-indigo-300',
+            };
+            
+            const cardColorClasses = getCardColorClasses(ficha.tipoServico);
+            const textColorClass = 'text-gray-300';
+
+            const cardEl = document.createElement('div');
+            cardEl.className = `${cardColorClasses} p-4 rounded-xl shadow-md flex flex-col justify-between`;
+            cardEl.innerHTML = `
+                <div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-xl text-white">${ficha.nomePet}</p>
+                            <p class="${textColorClass}">Tutor: ${ficha.nomeTutor}</p>
+                        </div>
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full ${rotaColors[ficha.rotaDesignada] || 'bg-gray-700'}">${(ficha.rotaDesignada || '').replace('_', ' ')}</span>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                    <p class="text-sm ${textColorClass}"><i class="fas fa-calendar-alt mr-2"></i>${ficha.datasAgendadas?.length || 0} dias</p>
+                    <button data-ficha-id="${ficha.id}" class="edit-btn p-2 text-gray-400 hover:text-white"><i class="fas fa-pencil-alt"></i></button>
+                </div>
+            `;
+            cardEl.querySelector('.edit-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                openFichaForm(e.currentTarget.dataset.fichaId);
+            });
+            fichasListContainer.appendChild(cardEl);
+        }
+        
+        async function openFichaForm(fichaId) {
+            fichaForm.reset();
+            const saveButton = document.getElementById('save-ficha-btn');
+            deleteFichaBtn.classList.add('hidden');
+            document.getElementById('fichaId').value = fichaId || '';
+            scheduledDates = [];
+
+            if (fichaId) {
+                fichaFormTitle.textContent = "Editar Card";
+                saveButton.textContent = "Salvar Alterações";
+                try {
+                    const fichaSnap = await getDoc(doc(db, "fichas", fichaId));
+                    if (fichaSnap.exists()) {
+                        const ficha = fichaSnap.data();
+                        document.getElementById('nomePet').value = ficha.nomePet || '';
+                        document.getElementById('nomeTutor').value = ficha.nomeTutor || '';
+                        document.getElementById('telefone').value = ficha.telefone || '';
+                        document.getElementById('endereco').value = ficha.endereco || '';
+                        document.getElementById('rotaDesignada').value = ficha.rotaDesignada || 'rota_1';
+                        (ficha.tipoServico || []).forEach(s => { const el = document.querySelector(`input[name="tipoServico"][value="${s}"]`); if (el) el.checked = true; });
+                        scheduledDates = ficha.datasAgendadas || [];
+                    }
+                    deleteFichaBtn.classList.remove('hidden');
+                } catch (error) {
+                    console.error("Erro ao buscar ficha para edição:", error);
+                }
+            } else {
+                fichaFormTitle.textContent = "Novo Card de Agendamento";
+                saveButton.textContent = "Criar Card";
+            }
+            renderCalendar(currentYear, currentMonth);
+            fichaFormModal.classList.replace('hidden', 'flex');
+        }
+
+        async function handleSaveFicha(e) {
+            e.preventDefault();
+            const fichaId = document.getElementById('fichaId').value;
+            
+            fichaFormModal.classList.replace('flex', 'hidden');
+
+            const servicos = Array.from(document.querySelectorAll('input[name="tipoServico"]:checked')).map(cb => cb.value);
+            const fichaData = {
+                nomePet: document.getElementById('nomePet').value,
+                nomeTutor: document.getElementById('nomeTutor').value,
+                telefone: document.getElementById('telefone').value,
+                endereco: document.getElementById('endereco').value,
+                rotaDesignada: document.getElementById('rotaDesignada').value,
+                tipoServico: servicos,
+                datasAgendadas: scheduledDates,
+            };
+
+            try {
+                if (fichaId) {
+                    const docSnap = await getDoc(doc(db, "fichas", fichaId));
+                    fichaData.grupo = docSnap.exists() ? docSnap.data().grupo : '';
+                    fichaData.ordem = docSnap.exists() ? docSnap.data().ordem : Date.now();
+                    fichaData.statusPorData = docSnap.exists() ? docSnap.data().statusPorData : {};
+                    await setDoc(doc(db, "fichas", fichaId), fichaData);
+                } else {
+                    fichaData.ordem = Date.now();
+                    fichaData.grupo = '';
+                    fichaData.statusPorData = {}; // Adicionar mapa de status para novos cards
+                    await addDoc(collection(db, "fichas"), fichaData);
+                }
+                showToast('Card salvo com sucesso!');
+            } catch (error) {
+                console.error("Erro ao salvar ficha: ", error);
+                showToast('Falha ao salvar o card.', false);
+            }
+        }
+        
+        async function handleDeleteFicha() {
+            const fichaId = document.getElementById('fichaId').value;
+            if (!fichaId) return;
+            try {
+                await deleteDoc(doc(db, "fichas", fichaId));
+                fichaFormModal.classList.replace('flex', 'hidden');
+                showToast('Card excluído com sucesso.');
+            } catch (error) {
+                console.error("Erro ao excluir ficha:", error);
+                showToast('Falha ao excluir o card.', false);
+            }
+        }
+        
+        async function handleSaveObservation(e) {
+            e.preventDefault();
+            const selectedRoute = document.getElementById('observation-route-select').value;
+            const observationText = document.getElementById('observation-text').value;
+            const selectedDate = dateFilter.value;
+            if(!selectedDate || !selectedRoute) return;
+
+            const obsDocRef = doc(db, "rotas", selectedDate);
+            try {
+                await setDoc(obsDocRef, { [selectedRoute]: observationText }, { merge: true });
+                observationModal.classList.replace('flex', 'hidden');
+                showToast('Observação salva!');
+            } catch (error) {
+                console.error("Erro ao salvar observação:", error);
+                showToast("Falha ao salvar observação.", false);
+            }
+        }
+
+        // CALENDÁRIO
+        function renderCalendar(year, month) {
+            calendarGrid.innerHTML = '';
+            const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+            calendarHeader.textContent = `${monthNames[month]} ${year}`;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) calendarGrid.insertAdjacentHTML('beforeend', `<div></div>`);
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isSelected = scheduledDates.includes(dateStr);
+                calendarGrid.insertAdjacentHTML('beforeend', `<div class="calendar-day p-2 ${isSelected ? 'selected' : ''}" data-date="${dateStr}">${day}</div>`);
+            }
+            scheduledDatesCount.textContent = scheduledDates.length;
+        }
+
+        function handleCalendarClick(event) {
+            const dayEl = event.target.closest('.calendar-day');
+            if (!dayEl || dayEl.classList.contains('disabled')) return;
+            const dateStr = dayEl.dataset.date;
+            const dateIndex = scheduledDates.indexOf(dateStr);
+            if (dateIndex > -1) {
+                scheduledDates.splice(dateIndex, 1);
+                dayEl.classList.remove('selected');
+            } else {
+                scheduledDates.push(dateStr);
+                dayEl.classList.add('selected');
+            }
+            scheduledDates.sort();
+            scheduledDatesCount.textContent = scheduledDates.length;
+        }
+
+        // --- INICIALIZAÇÃO E LISTENERS ---
+        async function startApp() {
+            try {
+                await enableIndexedDbPersistence(db);
+            } catch (err) {
+                console.warn("Falha ao ativar persistência offline:", err.code);
+            }
+
+            onAuthStateChanged(auth, user => {
+                if (user) {
+                    loginScreen.classList.add('hidden');
+                    appScreen.classList.replace('hidden', 'flex');
+                    userEmailDisplay.textContent = user.email || 'Anônimo';
+                    initializeAppLogic();
+                } else {
+                    loginScreen.classList.remove('hidden');
+                    appScreen.classList.replace('flex', 'hidden');
+                    if (unsubscribeFichasListener) unsubscribeFichasListener();
+                    if (unsubscribeKanbanListener) unsubscribeKanbanListener();
+                }
+            });
+        
+            document.getElementById('logout-btn').addEventListener('click', () => firebaseSignOut(auth));
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    await signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value);
+                } catch (error) {
+                    document.getElementById('login-error').textContent = "Email ou senha inválidos.";
+                }
+            });
+        }
+
+        function initializeAppLogic() {
+            toggleViews(true); 
+            
+            viewToggleBtn.addEventListener('click', () => {
+                const isKanbanVisible = !kanbanView.classList.contains('hidden');
+                toggleViews(!isKanbanVisible);
+            });
+            
+            addNewFichaBtn.addEventListener('click', () => openFichaForm(null));
+            closeFichaFormModalBtn.addEventListener('click', () => fichaFormModal.classList.replace('flex', 'hidden'));
+            fichaForm.addEventListener('submit', handleSaveFicha);
+            deleteFichaBtn.addEventListener('click', handleDeleteFicha);
+
+            dateFilter.addEventListener('change', () => fetchAndDisplayKanbanData(dateFilter.value));
+            kanbanRouteFilter.addEventListener('change', handleKanbanRouteFilter);
+            
+            searchFichasInput.addEventListener('input', renderFilteredFichas);
+            filterFichasRoute.addEventListener('change', renderFilteredFichas);
+            
+            document.getElementById('close-kanban-detail-modal-btn').addEventListener('click', () => kanbanDetailModal.classList.replace('flex', 'hidden'));
+            
+            addObservationBtn.addEventListener('click', () => observationModal.classList.replace('hidden', 'flex'));
+            document.getElementById('close-observation-modal-btn').addEventListener('click', () => observationModal.classList.replace('flex', 'hidden'));
+            document.getElementById('observation-form').addEventListener('submit', handleSaveObservation);
+
+            kanbanBoard.addEventListener('click', e => {
+                const statusBtn = e.target.closest('.status-btn');
+                if (statusBtn) {
+                    const fichaId = statusBtn.parentElement.dataset.fichaId;
+                    const newStatus = statusBtn.dataset.status;
+                    const currentDate = dateFilter.value;
+                    if (fichaId && newStatus && currentDate) {
+                        updatePetStatus(fichaId, currentDate, newStatus);
+                    }
+                    return;
+                }
+
+                if(e.target.classList.contains('group-mode-btn')) {
+                    const btn = e.target;
+                    const column = btn.closest('.kanban-column');
+                    const routeId = btn.dataset.routeId;
+                    
+                    const isInSelectionMode = column.classList.toggle('selection-mode');
+                    
+                    btn.textContent = isInSelectionMode ? 'Criar Remessa' : 'Agrupar';
+                    if (isInSelectionMode) {
+                        btn.classList.replace('bg-blue-600', 'bg-green-600');
+                        btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
+                    } else {
+                        btn.classList.replace('bg-green-600', 'bg-blue-600');
+                         btn.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
+                        
+                        const selectedCards = column.querySelectorAll('.selected-for-grouping');
+                        if (selectedCards.length > 0) {
+                            handleGroupCreation(routeId, selectedCards);
+                        }
+                        column.querySelectorAll('.kanban-pet-card').forEach(c => c.classList.remove('selected-for-grouping'));
+                    }
+                } else if (e.target.classList.contains('ungroup-btn')) {
+                    handleUngroup(e.target.dataset.routeId, e.target.dataset.groupName);
+                } else if (e.target.classList.contains('add-to-group-btn')) {
+                    const btn = e.target;
+                    const column = btn.closest('.kanban-column');
+                    const groupContainer = btn.closest('.bg-gray-900\\/50');
+                    const wasInAddMode = groupContainer.classList.contains('add-to-group-mode');
+                    
+                    document.querySelectorAll('.add-to-group-mode').forEach(c => c.classList.remove('add-to-group-mode'));
+                    document.querySelectorAll('.add-to-group-btn').forEach(b => { b.textContent = 'Adicionar'; b.classList.replace('bg-green-600', 'bg-blue-600'); });
+                    
+                    if(!wasInAddMode) {
+                        groupContainer.classList.add('add-to-group-mode');
+                        btn.textContent = 'Confirmar';
+                        btn.classList.replace('bg-blue-600', 'bg-green-600');
+                    } else {
+                        const selectedCards = column.querySelectorAll('.ungrouped-list .selected-for-grouping');
+                        if (selectedCards.length > 0) {
+                             handleAddToGroup(btn.dataset.routeId, btn.dataset.groupName, selectedCards);
+                        }
+                    }
+                }
+            });
+
+            async function handleGroupCreation(routeId, selectedCardsNodeList) {
+                const selectedFichaIds = Array.from(selectedCardsNodeList).map(card => card.dataset.fichaId);
+                const groupName = `Remessa ${document.querySelectorAll(`#groups-${routeId} > div`).length + 1}`;
+                
+                const batch = writeBatch(db);
+                selectedFichaIds.forEach(id => {
+                    batch.update(doc(db, "fichas", id), { grupo: groupName });
+                });
+                await batch.commit();
+                showToast("Remessa criada com sucesso!");
+            }
+
+            async function handleUngroup(routeId, groupName) {
+                const q = query(collection(db, "fichas"), where("rotaDesignada", "==", routeId), where("grupo", "==", groupName));
+                const snapshot = await getDocs(q);
+                const batch = writeBatch(db);
+                snapshot.forEach(doc => {
+                    batch.update(doc.ref, { grupo: "" });
+                });
+                await batch.commit();
+                showToast("Remessa desfeita.");
+            }
+
+            prevMonthBtn.addEventListener('click', () => { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar(currentYear, currentMonth); });
+            nextMonthBtn.addEventListener('click', () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar(currentYear, currentMonth); });
+            calendarGrid.addEventListener('click', handleCalendarClick);
+        }
+        
+        startApp();
+        
+    </script>
+</body>
+</html>
