@@ -1,931 +1,794 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PetBoard - Painel de Gestão</title>
+    <title>PetBoard - Sistema de Gestão</title>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></link>
+
+    <!-- Estilos Customizados -->
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .hidden { display: none; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        .calendar-day { transition: all 0.2s ease; cursor: pointer; }
-        .calendar-day.disabled { color: #4b5563; cursor: not-allowed; }
-        .calendar-day.selected { background-color: #3b82f6; color: white; border-radius: 50%; }
-        .calendar-day:not(.disabled):hover { background-color: #374151; border-radius: 50%; }
-        @keyframes slideInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes fadeOut { to { opacity: 0; } }
-        .toast-notification { animation: slideInUp 0.5s ease-out forwards, fadeOut 0.5s ease-in 3.5s forwards; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Estilos do Kanban */
-        .kanban-pet-card.dragging { opacity: 0.5; background-color: #4b5563; }
-        .selection-mode .kanban-pet-card,
-        .add-to-group-mode .ungrouped-list .kanban-pet-card {
-            cursor: pointer;
-        }
-        .kanban-pet-card.selected-for-grouping {
-            box-shadow: 0 0 0 3px #3b82f6;
-            border-color: #3b82f6 !important;
-        }
-        .group-container.add-to-group-mode {
-            border-color: #3b82f6;
-        }
-        
-        /* Estilos de Status (Aplicados dinamicamente) */
-        .status-buscando { border-left: 5px solid #f59e0b; } /* Amarelo/Laranja */
-        .status-coletado { border-left: 5px solid #10b981; } /* Verde/Esmeralda */
+        .pet-card, .fleet-card { transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
+        .pet-card:hover, .fleet-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        .kanban-column { min-height: 400px; }
 
-        /* Botões de status otimizados para toque */
-        .status-controls { display: flex; align-items: center; gap: 4px; }
-        .status-btn { 
-            background: transparent;
-            border: none; 
-            color: #9ca3af; /* gray-400 */
-            cursor: pointer; 
-            transition: all 0.2s ease-in-out;
-            font-size: 1rem; /* 16px */
-            padding: 0.5rem; /* 8px */
-            border-radius: 9999px; /* fully rounded */
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-        }
-        .status-btn:hover { 
-            color: #e5e7eb; /* gray-200 */
-            background-color: #374151; /* gray-700 */
-        }
-        .status-btn.active { 
-            color: #3b82f6; /* blue-500 */
-        }
+        /* Estilos de Status e Seleção */
+        .status-buscando { border-left: 4px solid #f59e0b; } /* amber-500 */
+        .status-coletado { border-left: 4px solid #10b981; } /* emerald-500 */
+        
+        /* Modo de Seleção para Agrupamento */
+        .selection-mode .ungrouped-pet-card { cursor: pointer; opacity: 0.6; }
+        .selection-mode .ungrouped-pet-card:hover { opacity: 1; border-color: #3b82f6; }
+        .selection-mode .selected-for-grouping { border: 2px solid #3b82f6; box-shadow: 0 0 0 2px #3b82f6; opacity: 1; }
+        
+        /* Modo de Edição de Grupo */
+        .edit-group-mode .group-pet .remove-from-group-btn { display: inline-flex !important; }
+        .edit-group-mode .ungrouped-pet-card .add-to-group-btn { display: inline-flex !important; }
+
+        /* Estilos do Calendário */
+        .calendar-day.selected-date { background-color: #2563eb; color: white; border-radius: 50%; }
+        .calendar-day:not(.disabled-date):hover { background-color: #dbeafe; border-radius: 50%; }
+        
+        /* Estilo para tarefa concluída */
+        .task-completed { text-decoration: line-through; color: #6b7280; } /* gray-500 */
+        
+        /* Card Kanban por Serviço */
+        .service-banho { background-color: #ddd6fe; color: #5b21b6; }
+        .dark .service-banho { background-color: #5b21b6; color: #ddd6fe; }
+        .service-creche { background-color: #bbf7d0; color: #166534; }
+        .dark .service-creche { background-color: #16a34a; color: #bbf7d0; }
+        .service-hotel { background-color: #bfdbfe; color: #1e40af; }
+        .dark .service-hotel { background-color: #2563eb; color: #bfdbfe; }
+        .service-clinica { background-color: #fde68a; color: #92400e; }
+        .dark .service-clinica { background-color: #ca8a04; color: #fde68a; }
+        .service-outros { background-color: #d1d5db; color: #1f2937; }
+        .dark .service-outros { background-color: #4b5563; color: #d1d5db; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200 antialiased">
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
 
-    <!-- Tela de Login -->
-    <div id="login-screen" class="flex items-center justify-center min-h-screen">
-        <div class="w-full max-w-sm p-8 space-y-6 bg-gray-800 rounded-xl shadow-2xl shadow-black/30">
+    <!-- TELA DE LOGIN -->
+    <div id="login-view" class="flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
             <div class="text-center">
-                <i class="fas fa-paw text-4xl text-blue-500"></i>
-                <h1 class="text-3xl font-bold text-white mt-2">PetBoard</h1>
-                <p class="text-gray-400">Acesse seu painel de gestão</p>
+                <i class="fa-solid fa-paw text-4xl text-blue-600"></i>
+                <h1 class="text-3xl font-bold mt-2">PetBoard</h1>
+                <p class="text-gray-500 dark:text-gray-400">Acesse para gerenciar as rotas</p>
             </div>
             <form id="login-form" class="space-y-4">
-                <input id="email" type="email" required class="w-full px-4 py-2 mt-1 text-gray-200 bg-gray-700 border border-gray-600 rounded-lg" placeholder="seu@email.com">
-                <input id="password" type="password" required class="w-full px-4 py-2 mt-1 text-gray-200 bg-gray-700 border border-gray-600 rounded-lg" placeholder="********">
-                <button type="submit" class="w-full px-4 py-2 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Entrar</button>
+                <input type="email" id="email" required class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700" placeholder="seu@email.com">
+                <input type="password" id="password" required class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700" placeholder="Sua senha">
+                <button type="submit" class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg">Entrar</button>
             </form>
-            <p id="login-error" class="text-sm text-center text-red-500"></p>
+            <p id="login-error" class="text-red-500 text-sm text-center h-4 mt-4"></p>
         </div>
     </div>
 
-    <!-- Painel Principal da Aplicação -->
-    <main id="app-screen" class="hidden flex flex-col h-screen">
-        <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center flex-shrink-0">
-            <div class="flex items-center space-x-3">
-                <i class="fas fa-paw text-2xl text-blue-500"></i>
-                <h1 class="text-2xl font-bold text-white">PetBoard</h1>
-            </div>
-            <div class="flex items-center space-x-4">
-                <button id="view-toggle-btn" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"><i class="fas fa-address-card mr-2"></i>Ver Cards</button>
-                <div class="text-right">
-                    <p class="text-sm text-gray-400">Logado como</p>
-                    <p id="user-email" class="font-medium text-white"></p>
+    <!-- APLICAÇÃO PRINCIPAL -->
+    <div id="app-view" class="hidden">
+        <header class="fixed top-0 left-0 w-full bg-white dark:bg-gray-800 shadow-md z-40">
+             <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold text-blue-600"><i class="fa-solid fa-paw"></i> PetBoard</h1>
+                    <nav class="hidden md:flex items-center gap-2">
+                        <button data-tab="painel" class="nav-tab active-tab px-3 py-1 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"><i class="fa-solid fa-columns mr-2"></i>Painel</button>
+                        <button data-tab="cards" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-id-card mr-2"></i>Cards</button>
+                        <button data-tab="frota" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-truck mr-2"></i>Frota</button>
+                    </nav>
                 </div>
-                <button id="logout-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"><i class="fas fa-sign-out-alt"></i></button>
+                <div class="flex items-center gap-4">
+                    <span id="user-email" class="text-sm"></span>
+                    <button id="logout-btn" class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-sm"><i class="fa-solid fa-right-from-bracket"></i></button>
+                </div>
+            </div>
+            <div class="md:hidden border-t dark:border-gray-700">
+                <nav class="flex justify-around items-center p-1">
+                    <button data-tab="painel" class="nav-tab active-tab flex-1 text-center py-2 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"><i class="fa-solid fa-columns"></i></button>
+                    <button data-tab="cards" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-id-card"></i></button>
+                    <button data-tab="frota" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-truck"></i></button>
+                </nav>
             </div>
         </header>
 
-        <!-- Container do Kanban (Tela Principal) -->
-        <div id="kanban-view" class="hidden flex-grow flex flex-col">
-            <div class="p-4 bg-gray-800/50 border-y border-gray-700 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 flex-shrink-0">
-                 <h2 class="text-2xl font-bold text-white">Painel do Dia</h2>
-                <div>
-                    <label for="date-filter" class="text-sm font-medium text-gray-400">Data:</label>
-                    <input type="date" id="date-filter" class="p-2 border bg-gray-700 border-gray-600 rounded-lg">
-                </div>
-                <div>
-                    <label for="kanban-route-filter" class="text-sm font-medium text-gray-400">Filtrar Rota:</label>
-                    <select id="kanban-route-filter" class="p-2 bg-gray-700 border border-gray-600 rounded-lg">
+        <main class="pt-28 md:pt-20">
+            <!-- ABA PAINEL DO DIA -->
+            <div id="painel-tab" class="tab-content p-2 md:p-4">
+                <div class="mb-4 flex flex-wrap items-center gap-4">
+                    <input type="date" id="painel-date-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
+                    <select id="painel-route-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
                         <option value="all">Todas as Rotas</option>
-                        <option value="rota_1">Rota 1</option>
-                        <option value="rota_2">Rota 2</option>
-                        <option value="rota_3">Rota 3</option>
-                        <option value="avulso">Avulso</option>
+                        <option value="Rota 1">Rota 1</option><option value="Rota 2">Rota 2</option><option value="Rota 3">Rota 3</option><option value="Avulso">Avulso</option>
                     </select>
                 </div>
-                <button id="add-observation-btn" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"><i class="fas fa-comment-alt mr-2"></i>Observações</button>
+                <div id="kanban-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
             </div>
-            <div id="kanban-board" class="flex-grow p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto">
-                <!-- Colunas do Kanban serão inseridas aqui -->
+
+            <!-- ABA CARDS -->
+            <div id="cards-tab" class="tab-content hidden p-2 md:p-4">
+                 <div class="mb-4 flex flex-wrap items-center gap-4">
+                    <input type="search" id="card-search-input" placeholder="Buscar por pet ou tutor..." class="flex-grow bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
+                    <select id="card-route-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
+                         <option value="all">Todas as Rotas</option>
+                         <option value="Rota 1">Rota 1</option><option value="Rota 2">Rota 2</option><option value="Rota 3">Rota 3</option><option value="Avulso">Avulso</option>
+                    </select>
+                    <button id="new-pet-card-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-plus mr-2"></i>Novo Card</button>
+                </div>
+                <div id="pet-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"></div>
             </div>
-        </div>
+
+            <!-- ABA FROTA -->
+            <div id="frota-tab" class="tab-content hidden p-2 md:p-4">
+                 <div id="fleet-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Cards da frota são renderizados aqui -->
+                 </div>
+            </div>
+        </main>
         
-        <!-- Container de Cards (Tela Secundária) -->
-        <div id="fichas-view" class="hidden flex-grow p-4 md:p-6 lg:p-8">
-             <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
-                <h2 class="text-3xl font-bold text-white">Cards de Agendamento</h2>
-                <div class="flex items-center gap-4 flex-wrap">
-                    <input type="search" id="search-fichas-input" placeholder="Buscar pet ou tutor..." class="w-64 p-2 bg-gray-700 border border-gray-600 rounded-lg">
-                    <select id="filter-fichas-route" class="p-2 bg-gray-700 border border-gray-600 rounded-lg">
-                        <option value="all">Todas as Rotas</option>
-                        <option value="rota_1">Rota 1</option>
-                        <option value="rota_2">Rota 2</option>
-                        <option value="rota_3">Rota 3</option>
-                        <option value="avulso">Avulso</option>
-                    </select>
-                    <button id="add-new-ficha-btn" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-lg"><i class="fas fa-plus mr-2"></i>Novo Card</button>
-                </div>
-            </div>
-            <div id="fichas-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <!-- Cards de agendamento serão inseridos aqui -->
-            </div>
-        </div>
-
-    </main>
-    
-    <!-- Modal: Formulário de Card de Agendamento -->
-    <div id="ficha-form-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-30">
-        <div class="bg-gray-800 rounded-xl shadow-2xl shadow-black/50 w-full max-w-4xl h-[95vh] flex flex-col fade-in">
-            <form id="ficha-form" class="flex flex-col h-full">
-                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
-                    <h2 id="ficha-form-title" class="text-2xl font-bold text-white">Novo Card</h2>
-                    <button type="button" id="close-ficha-form-modal-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-                </div>
-                <div class="flex-grow overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <!-- Coluna 1: Dados Essenciais -->
-                    <div class="space-y-6">
-                        <input type="hidden" id="fichaId">
-                        <div>
-                             <label for="nomePet" class="block text-sm font-medium text-gray-400">Nome do Pet</label>
-                            <input type="text" id="nomePet" required class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
-                        </div>
-                        <div>
-                            <label for="nomeTutor" class="block text-sm font-medium text-gray-400">Nome do Tutor</label>
-                            <input type="text" id="nomeTutor" required class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
-                        </div>
-                        <div>
-                            <label for="telefone" class="block text-sm font-medium text-gray-400">Telefone</label>
-                            <input type="tel" id="telefone" class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
-                        </div>
-                        <div>
-                            <label for="endereco" class="block text-sm font-medium text-gray-400">Endereço</label>
-                            <textarea id="endereco" rows="3" class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg"></textarea>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-400">Rota Padrão Designada</label>
-                            <select id="rotaDesignada" class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
-                                <option value="rota_1">Rota 1</option>
-                                <option value="rota_2">Rota 2</option>
-                                <option value="rota_3">Rota 3</option>
-                                <option value="avulso">Avulso</option>
-                            </select>
-                        </div>
-                         <div>
-                            <label class="block text-sm font-medium text-gray-400">Serviços</label>
-                            <div id="tipoServico-checkboxes" class="grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
-                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Banho" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Banho</label>
-                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Creche" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Creche</label>
-                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Hotel" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Hotel</label>
-                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Clínica" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Clínica</label>
-                                <label class="flex items-center"><input type="checkbox" name="tipoServico" value="Outros" class="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600 mr-2">Outros</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Coluna 2: Calendário de Agendamento -->
-                    <div class="space-y-4">
-                        <h3 class="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Dias de Agendamento</h3>
-                        <div id="calendar-container" class="bg-gray-900/50 p-4 rounded-lg">
-                            <div class="flex items-center justify-between mb-4">
-                                <button type="button" id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-700"><i class="fas fa-chevron-left"></i></button>
-                                <h4 id="calendar-header" class="text-lg font-semibold"></h4>
-                                <button type="button" id="next-month-btn" class="p-2 rounded-full hover:bg-gray-700"><i class="fas fa-chevron-right"></i></button>
-                            </div>
-                             <div class="grid grid-cols-7 gap-1 text-center font-medium text-xs text-gray-500 mb-2">
-                                <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-                            </div>
-                            <div id="calendar-grid" class="grid grid-cols-7 gap-1 text-center"></div>
-                        </div>
-                        <p class="text-sm text-gray-400"><span id="scheduled-dates-count">0</span> dias agendados.</p>
-                    </div>
-                </div>
-                <div class="p-4 bg-gray-900/50 border-t border-gray-700 flex justify-between items-center">
-                    <button type="button" id="delete-ficha-btn" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 hidden"><i class="fas fa-trash-alt mr-2"></i>Excluir Card</button>
-                    <div class="flex items-center">
-                        <button type="submit" id="save-ficha-btn" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed flex items-center justify-center min-w-[150px]">
-                           {/* O texto será definido via JS */}
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Modal: Detalhes do Card no Kanban -->
-    <div id="kanban-detail-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
-        <div class="bg-gray-800 rounded-xl shadow-2xl shadow-black/50 w-full max-w-md fade-in">
-            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
-                <h2 class="text-2xl font-bold text-white">Detalhes do Agendamento</h2>
-                <button id="close-kanban-detail-modal-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-            </div>
-            <div id="kanban-detail-content" class="p-6 space-y-4">
-                <!-- Conteúdo dos detalhes será inserido aqui -->
-            </div>
+        <div id="generic-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div id="generic-modal-content" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl m-4 transform transition-all overflow-y-auto max-h-[90vh]"></div>
         </div>
     </div>
 
-    <!-- Modal: Observação da Rota -->
-     <div id="observation-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
-        <div class="bg-gray-800 rounded-xl shadow-2xl shadow-black/50 w-full max-w-lg fade-in">
-            <form id="observation-form">
-                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
-                    <h2 class="text-2xl font-bold text-white">Adicionar Observação na Rota</h2>
-                    <button type="button" id="close-observation-modal-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-                </div>
-                <div class="p-6 space-y-4">
-                     <div>
-                        <label for="observation-route-select" class="block text-sm font-medium text-gray-400">Rota</label>
-                        <select id="observation-route-select" required class="w-full text-lg p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg">
-                            <option value="rota_1">Rota 1</option>
-                            <option value="rota_2">Rota 2</option>
-                            <option value="rota_3">Rota 3</option>
-                            <option value="avulso">Avulso</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="observation-text" class="block text-sm font-medium text-gray-400">Observação</label>
-                        <textarea id="observation-text" required rows="4" class="w-full p-2 mt-1 bg-gray-700 border border-gray-600 rounded-lg" placeholder="Ex: Comprar bexiga azul e amarela..."></textarea>
-                    </div>
-                </div>
-                <div class="p-4 bg-gray-900/50 border-t border-gray-700 flex justify-end">
-                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar Observação</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Container para Toast Notifications -->
-    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
-    
-    <!-- Firebase SDK -->
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, enableIndexedDbPersistence, collection, doc, addDoc, setDoc, getDoc, onSnapshot, deleteDoc, query, where, updateDoc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, setDoc, deleteDoc, getDoc, runTransaction, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // --- CONFIGURAÇÃO E INICIALIZAÇÃO ---
         const firebaseConfig = {
             apiKey: "AIzaSyCKOXqvwo9wA7pMDdoLMMtUiQSKDW9bygU",
             authDomain: "taxidog-593d8.firebaseapp.com",
             projectId: "taxidog-593d8",
             storageBucket: "taxidog-593d8.appspot.com",
             messagingSenderId: "419627111718",
-            appId: "1:419627111718:web:805c187a118d199aa9dde7",
+            appId: "1:419627111718:web:805c187a118d199aa9dde7"
         };
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
-        
-        // --- SELEÇÃO DE ELEMENTOS DA UI ---
-        const loginScreen = document.getElementById('login-screen');
-        const appScreen = document.getElementById('app-screen');
-        const userEmailDisplay = document.getElementById('user-email');
-        const fichasView = document.getElementById('fichas-view');
-        const kanbanView = document.getElementById('kanban-view');
-        const viewToggleBtn = document.getElementById('view-toggle-btn');
-        const kanbanBoard = document.getElementById('kanban-board');
-        const dateFilter = document.getElementById('date-filter');
-        const kanbanRouteFilter = document.getElementById('kanban-route-filter');
-        const addNewFichaBtn = document.getElementById('add-new-ficha-btn');
-        const fichasListContainer = document.getElementById('fichas-list-container');
-        const fichaFormModal = document.getElementById('ficha-form-modal');
-        const fichaForm = document.getElementById('ficha-form');
-        const fichaFormTitle = document.getElementById('ficha-form-title');
-        const closeFichaFormModalBtn = document.getElementById('close-ficha-form-modal-btn');
-        const calendarGrid = document.getElementById('calendar-grid');
-        const calendarHeader = document.getElementById('calendar-header');
-        const prevMonthBtn = document.getElementById('prev-month-btn');
-        const nextMonthBtn = document.getElementById('next-month-btn');
-        const scheduledDatesCount = document.getElementById('scheduled-dates-count');
-        const deleteFichaBtn = document.getElementById('delete-ficha-btn');
-        const searchFichasInput = document.getElementById('search-fichas-input');
-        const filterFichasRoute = document.getElementById('filter-fichas-route');
-        const kanbanDetailModal = document.getElementById('kanban-detail-modal');
-        const addObservationBtn = document.getElementById('add-observation-btn');
-        const observationModal = document.getElementById('observation-modal');
+        const auth = getAuth(app);
 
         // --- ESTADO DA APLICAÇÃO ---
-        let currentMonth = new Date().getMonth();
-        let currentYear = new Date().getFullYear();
-        let scheduledDates = [];
-        let unsubscribeFichasListener = null;
-        let unsubscribeKanbanListener = null;
-        let allFichas = []; 
-        let draggedFichaId = null;
+        let allPets = [];
+        let fleetData = {};
+        let currentSchedule = null;
+        let selectedForGrouping = [];
 
-        // --- FUNÇÕES DE LÓGICA ---
+        // --- REFERÊNCIAS DO DOM ---
+        const loginView = document.getElementById('login-view'), appView = document.getElementById('app-view'),
+              loginForm = document.getElementById('login-form'), loginError = document.getElementById('login-error'),
+              userEmailSpan = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
 
-        function showToast(message, isSuccess = true) {
-            const toastContainer = document.getElementById('toast-container');
-            const bgColor = isSuccess ? 'bg-green-600' : 'bg-red-600';
-            const icon = isSuccess ? 'fa-check-circle' : 'fa-times-circle';
-            const toast = document.createElement('div');
-            toast.className = `toast-notification p-4 rounded-lg text-white shadow-lg flex items-center ${bgColor}`;
-            toast.innerHTML = `<i class="fas ${icon} mr-3"></i> ${message}`;
-            toastContainer.appendChild(toast);
-            setTimeout(() => {
-                toast.remove();
-            }, 3500);
-        }
-
-        function toggleViews(showKanban) {
-            if (showKanban) {
-                fichasView.classList.add('hidden');
-                kanbanView.classList.remove('hidden');
-                kanbanView.classList.add('flex');
-                viewToggleBtn.innerHTML = `<i class="fas fa-address-card mr-2"></i>Ver Cards`;
-                
-                const today = new Date().toISOString().split('T')[0];
-                dateFilter.value = today;
-                renderKanbanBoard();
-                fetchAndDisplayKanbanData(today);
+        // --- LÓGICA DE AUTENTICAÇÃO REAL DO FIREBASE ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                loginView.classList.add('hidden');
+                appView.classList.remove('hidden');
+                userEmailSpan.textContent = user.email;
+                initializeAppLogic(user); 
             } else {
-                kanbanView.classList.add('hidden');
-                kanbanView.classList.remove('flex');
-                fichasView.classList.remove('hidden');
-                viewToggleBtn.innerHTML = `<i class="fas fa-columns mr-2"></i>Ver Painel do Dia`;
-                loadFichas();
+                appView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+                userEmailSpan.textContent = '';
             }
-        }
-        
-        // KANBAN
-        async function updatePetStatus(fichaId, date, status) {
-            const fichaRef = doc(db, "fichas", fichaId);
-            try {
-                const statusUpdate = {};
-                statusUpdate[`statusPorData.${date}`] = status;
-                await updateDoc(fichaRef, statusUpdate);
-            } catch (error) {
-                console.error("Erro ao atualizar status do pet:", error);
-                showToast("Falha ao atualizar status.", false);
-            }
-        }
+        });
 
-        function fetchAndDisplayKanbanData(selectedDate) {
-            if (unsubscribeKanbanListener) unsubscribeKanbanListener();
-            
-            const q = query(collection(db, "fichas"), where("datasAgendadas", "array-contains", selectedDate));
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            loginError.textContent = '';
 
-            unsubscribeKanbanListener = onSnapshot(q, (querySnapshot) => {
-                const scheduledFichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderKanbanLists(scheduledFichas, selectedDate);
-            });
-
-            const obsDocRef = doc(db, "rotas", selectedDate);
-            onSnapshot(obsDocRef, (docSnap) => {
-                const observations = docSnap.data() || {};
-                document.querySelectorAll('.observation-display').forEach(el => {
-                    const routeId = el.dataset.routeId;
-                    el.textContent = observations[routeId] || '';
-                    el.classList.toggle('hidden', !observations[routeId]);
-                });
-            });
-        }
-        
-        function renderKanbanLists(fichas, currentDate) {
-             document.querySelectorAll('.group-container').forEach(list => list.innerHTML = '');
-            
-            const fichasByRouteAndGroup = fichas.reduce((acc, ficha) => {
-                const route = ficha.rotaDesignada || 'rota_1';
-                const group = ficha.grupo || 'Não Agrupados';
-                if (!acc[route]) acc[route] = {};
-                if (!acc[route][group]) acc[route][group] = [];
-                acc[route][group].push(ficha);
-                return acc;
-            }, {});
-
-            for (const routeId in fichasByRouteAndGroup) {
-                const groupContainer = document.getElementById(`groups-${routeId}`);
-                if (!groupContainer) continue;
-
-                groupContainer.innerHTML = ''; 
-
-                Object.keys(fichasByRouteAndGroup[routeId]).sort((a, b) => {
-                    if (a === 'Não Agrupados') return 1;
-                    if (b === 'Não Agrupados') return -1;
-                    return a.localeCompare(b);
-                }).forEach(groupName => {
-                    const groupFichas = fichasByRouteAndGroup[routeId][groupName].sort((a,b) => (a.ordem || 0) - (b.ordem || 0));
-
-                    const groupEl = document.createElement('div');
-                    groupEl.className = 'bg-gray-900/50 p-2 rounded-md border border-dashed border-gray-700';
-                    
-                    let headerHTML = `<h3 class="font-semibold text-sm text-gray-300 mb-2">${groupName}</h3>`;
-                    if(groupName !== 'Não Agrupados') {
-                        headerHTML = `<div class="flex justify-between items-center mb-2">
-                                          <h3 class="font-semibold text-sm text-gray-300">${groupName}</h3>
-                                           <div class="flex items-center gap-2">
-                                                <button data-route-id="${routeId}" data-group-name="${groupName}" class="add-to-group-btn text-xs text-blue-400 hover:text-blue-300"><i class="fas fa-plus"></i> Adicionar</button>
-                                                <button data-route-id="${routeId}" data-group-name="${groupName}" class="ungroup-btn text-xs text-red-400 hover:text-red-300">&times; Desagrupar</button>
-                                          </div>
-                                      </div>`;
+            signInWithEmailAndPassword(auth, email, password)
+                .catch(error => {
+                    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                        loginError.textContent = 'A criar conta...';
+                        createUserWithEmailAndPassword(auth, email, password)
+                           .catch(err => {
+                               loginError.textContent = 'Erro ao criar conta: ' + err.message;
+                           });
+                    } else {
+                        loginError.textContent = 'Email ou senha incorretos.';
                     }
-                    groupEl.innerHTML = headerHTML + `<div class="card-list space-y-2" data-route-id="${routeId}" data-group-name="${groupName}"></div>`;
-                    
-                    const cardListEl = groupEl.querySelector('.card-list');
-                    groupFichas.forEach(ficha => {
-                        renderKanbanPetCard(cardListEl, ficha, currentDate);
-                    });
-                    
-                    groupContainer.appendChild(groupEl);
                 });
-            }
-            handleKanbanRouteFilter();
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth);
+        });
+
+        // --- LÓGICA PRINCIPAL ---
+        async function initializeAppLogic(user) {
+            await ensureFleetDataExists();
+            setupNavigation();
+            setupCardsTab();
+            setupPainelTab();
+            setupFrotaTab();
         }
 
-        function renderKanbanPetCard(cardListEl, ficha, currentDate) {
-            const cardColorClasses = getCardColorClasses(ficha.tipoServico);
-            const routeId = ficha.rotaDesignada;
-            
-            const status = ficha.statusPorData?.[currentDate] || 'pendente';
-            let statusClass = '';
-            
-            if (routeId === 'avulso') {
-                if (status === 'buscando') statusClass = 'status-buscando';
-                else if (status === 'coletado') statusClass = 'status-coletado';
-            }
+        // --- NAVEGAÇÃO ---
+        function setupNavigation() {
+            const navTabs = document.querySelectorAll('.nav-tab'), tabContents = document.querySelectorAll('.tab-content');
+            navTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    navTabs.forEach(t => t.classList.remove('active-tab', 'bg-blue-100', 'dark:bg-blue-900', 'text-blue-700', 'dark:text-blue-300'));
+                    document.querySelectorAll(`.nav-tab[data-tab="${tabName}"]`).forEach(t => t.classList.add('active-tab', 'bg-blue-100', 'dark:bg-blue-900', 'text-blue-700', 'dark:text-blue-300'));
+                    tabContents.forEach(content => content.classList.add('hidden'));
+                    document.getElementById(`${tabName}-tab`).classList.remove('hidden');
+                    if (tabName === 'painel') loadScheduleForDate();
+                });
+            });
+        }
+        
+        // --- MODAIS ---
+        const modal = document.getElementById('generic-modal'), modalContent = document.getElementById('generic-modal-content');
+        function openModal(html) { modalContent.innerHTML = html; modal.classList.remove('hidden'); }
+        function closeModal() { modal.classList.add('hidden'); modalContent.innerHTML = ''; }
+        modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-            const cardEl = document.createElement('div');
-            cardEl.id = `kanban-card-${ficha.id}`;
-            cardEl.dataset.fichaId = ficha.id;
-            cardEl.className = `${cardColorClasses} ${statusClass} kanban-pet-card p-3 rounded-lg shadow-sm border cursor-grab hover:border-blue-500`;
-            cardEl.draggable = true;
-
-            const statusControlsHTML = routeId === 'avulso' ? `
-                <div class="status-controls" data-ficha-id="${ficha.id}">
-                    <button title="Buscando" class="status-btn ${status === 'buscando' ? 'active' : ''}" data-status="buscando"><i class="fas fa-motorcycle"></i></button>
-                    <button title="Coletado" class="status-btn ${status === 'coletado' ? 'active' : ''}" data-status="coletado"><i class="fas fa-check-double"></i></button>
-                    <button title="Resetar Status" class="status-btn" data-status="pendente"><i class="fas fa-times"></i></button>
+        function openConfirmationModal(message, onConfirm) {
+            const modalHTML = `
+                <h3 class="text-lg font-bold mb-4">Confirmação</h3>
+                <p>${message}</p>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button id="cancel-confirm-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
+                    <button id="do-confirm-btn" class="px-4 py-2 rounded-lg bg-green-600 text-white">Confirmar</button>
                 </div>
-            ` : '';
+            `;
+            openModal(modalHTML);
+            document.getElementById('do-confirm-btn').onclick = () => { onConfirm(); closeModal(); };
+            document.getElementById('cancel-confirm-btn').onclick = closeModal;
+        }
 
-            cardEl.innerHTML = `
-                <div class="flex justify-between items-start w-full">
-                    <p class="font-bold text-white pointer-events-none mr-2">${ficha.nomePet}</p>
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                        <i class="fas fa-info-circle text-gray-500 hover:text-white cursor-pointer detail-info-btn" data-current-date="${currentDate}"></i>
-                        <div class="selection-indicator hidden w-5 h-5 border-2 border-gray-400 rounded-full bg-gray-700 flex items-center justify-center">
-                            <i class="fas fa-check text-xs text-white hidden"></i>
+        // --- HELPERS ---
+        function getServiceColorClass(services) {
+            if (!services || services.length === 0) return 'service-outros';
+            const mainService = services[0].toLowerCase();
+            switch (mainService) {
+                case 'banho': return 'service-banho';
+                case 'creche': return 'service-creche';
+                case 'hotel': return 'service-hotel';
+                case 'clinica': return 'service-clinica';
+                default: return 'service-outros';
+            }
+        }
+        
+        // --- ABA CARDS ---
+        function setupCardsTab() {
+            onSnapshot(collection(db, 'pets'), (snapshot) => {
+                allPets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                applyCardFiltersAndRender();
+                if(document.getElementById('painel-tab').style.display !== 'hidden') loadScheduleForDate();
+            });
+            document.getElementById('new-pet-card-btn').addEventListener('click', () => openPetModal());
+            document.getElementById('card-search-input').addEventListener('input', applyCardFiltersAndRender);
+            document.getElementById('card-route-filter').addEventListener('change', applyCardFiltersAndRender);
+        }
+        
+        function applyCardFiltersAndRender() {
+            const searchTerm = document.getElementById('card-search-input').value.toLowerCase();
+            const selectedRoute = document.getElementById('card-route-filter').value;
+            const filteredPets = allPets.filter(pet => (pet.petName.toLowerCase().includes(searchTerm) || pet.tutorName.toLowerCase().includes(searchTerm)) && (selectedRoute === 'all' || pet.defaultRoute === selectedRoute));
+            renderPetCards(filteredPets);
+        }
+
+        function renderPetCards(pets) {
+            const grid = document.getElementById('pet-cards-grid');
+            grid.innerHTML = pets.length ? '' : `<p class="col-span-full text-center text-gray-500">Nenhum pet encontrado.</p>`;
+            pets.forEach(pet => {
+                const card = document.createElement('div');
+                const serviceClass = getServiceColorClass(pet.services);
+                card.className = `pet-card rounded-lg shadow p-4 flex flex-col gap-2 cursor-pointer ${serviceClass}`;
+                card.innerHTML = `<h3 class="font-bold text-lg">${pet.petName}</h3><p class="text-sm"><i class="fa-solid fa-user mr-2"></i>${pet.tutorName}</p><p class="text-sm"><i class="fa-solid fa-route mr-2"></i>${pet.defaultRoute}</p>`;
+                card.addEventListener('click', () => openPetModal(pet));
+                grid.appendChild(card);
+            });
+        }
+        
+        async function openPetModal(pet = {}) {
+            const isEditing = !!pet.id;
+            const petDoc = isEditing ? (await getDoc(doc(db, "pets", pet.id))).data() : {};
+            const scheduledDates = petDoc?.scheduledDates || [];
+            const services = petDoc?.services || [];
+            
+            const modalHTML = `
+                <form id="pet-form">
+                    <h2 class="text-2xl font-bold mb-6">${isEditing ? 'Editar Ficha' : 'Nova Ficha'}</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" name="petName" placeholder="Nome do Pet" required class="w-full p-2 border rounded dark:bg-gray-700" value="${pet.petName || ''}">
+                        <input type="text" name="tutorName" placeholder="Nome do Tutor" required class="w-full p-2 border rounded dark:bg-gray-700" value="${pet.tutorName || ''}">
+                        <input type="tel" name="phone" placeholder="Telefone" class="w-full p-2 border rounded dark:bg-gray-700" value="${pet.phone || ''}">
+                        <select name="defaultRoute" required class="w-full p-2 border rounded dark:bg-gray-700">
+                            <option value="Rota 1" ${pet.defaultRoute === 'Rota 1' ? 'selected' : ''}>Rota 1</option>
+                            <option value="Rota 2" ${pet.defaultRoute === 'Rota 2' ? 'selected' : ''}>Rota 2</option>
+                            <option value="Rota 3" ${pet.defaultRoute === 'Rota 3' ? 'selected' : ''}>Rota 3</option>
+                            <option value="Avulso" ${pet.defaultRoute === 'Avulso' ? 'selected' : ''}>Avulso</option>
+                        </select>
+                        <textarea name="address" placeholder="Endereço" class="w-full p-2 border rounded md:col-span-2 dark:bg-gray-700">${pet.address || ''}</textarea>
+                         <fieldset class="mt-4 border p-3 rounded md:col-span-2">
+                            <legend class="px-2 font-semibold">Serviços</legend>
+                            <div class="flex flex-wrap gap-x-6 gap-y-2">
+                                <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Banho" ${services.includes('Banho') ? 'checked' : ''}> Banho</label>
+                                <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Creche" ${services.includes('Creche') ? 'checked' : ''}> Creche</label>
+                                <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Hotel" ${services.includes('Hotel') ? 'checked' : ''}> Hotel</label>
+                                <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Clinica" ${services.includes('Clinica') ? 'checked' : ''}> Clinica</label>
+                                <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Outros" ${services.includes('Outros') ? 'checked' : ''}> Outros</label>
+                            </div>
+                        </fieldset>
+                    </div>
+                    ${isEditing ? `<fieldset class="mt-4 border p-3 rounded"><legend class="px-2 font-semibold">Agendar Datas</legend><div id="calendar-container"></div></fieldset>` : ''}
+                    <div class="mt-6 flex justify-between items-center">
+                        <div>${isEditing ? `<button type="button" id="delete-pet-btn" class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"><i class="fa-solid fa-trash"></i></button>` : ''}</div>
+                        <div class="flex gap-3">
+                           <button type="button" id="modal-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
+                           <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Salvar</button>
                         </div>
                     </div>
-                </div>
-                ${ statusControlsHTML ? `<div class="mt-2">${statusControlsHTML}</div>` : '' }
-            `;
-            
-            cardEl.querySelector('.detail-info-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                openKanbanDetailModal(ficha, currentDate);
-            });
+                </form>`;
+            openModal(modalHTML);
 
-            cardEl.addEventListener('click', (e) => {
-                if (e.target.closest('button') || e.target.closest('.detail-info-btn')) return;
-                const column = e.target.closest('.kanban-column');
-                if (column && column.classList.contains('selection-mode')) {
-                    e.stopPropagation();
-                    cardEl.classList.toggle('selected-for-grouping');
-                    cardEl.querySelector('.selection-indicator i').classList.toggle('hidden');
+            document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+
+            if (isEditing) {
+                renderCalendar('calendar-container', pet, scheduledDates);
+                document.getElementById('delete-pet-btn').addEventListener('click', () => deletePet(pet));
+            }
+            document.getElementById('pet-form').addEventListener('submit', (e) => savePet(e, pet, isEditing));
+        }
+
+        async function savePet(e, pet, isEditing) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const services = Array.from(form.querySelectorAll('input[name="services"]:checked')).map(cb => cb.value);
+
+            const petData = {
+                petName: formData.get('petName'),
+                tutorName: formData.get('tutorName'),
+                phone: formData.get('phone'),
+                address: formData.get('address'),
+                defaultRoute: formData.get('defaultRoute'),
+                services: services
+            };
+            
+            try {
+                if (isEditing) {
+                    await setDoc(doc(db, "pets", pet.id), petData, { merge: true });
+                } else {
+                    await addDoc(collection(db, "pets"), petData);
                 }
+                closeModal();
+            } catch (error) { console.error("Erro ao salvar pet:", error); }
+        }
+
+        function deletePet(pet) {
+            openConfirmationModal(`Tem a certeza que quer apagar a ficha de ${pet.petName}? Esta ação não pode ser desfeita.`, async () => {
+                try {
+                    await deleteDoc(doc(db, "pets", pet.id));
+                } catch (error) { console.error("Erro ao apagar pet:", error); }
             });
-            cardListEl.appendChild(cardEl);
+        }
+        
+        // --- CALENDÁRIO ---
+        function renderCalendar(containerId, pet, scheduledDates) {
+            const container = document.getElementById(containerId);
+            let date = new Date();
+            function draw() {
+                container.innerHTML = `<div class="flex items-center justify-between mb-2"><button id="prev-month" class="px-2 py-1">&lt;</button><h3 class="font-bold">${date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</h3><button id="next-month" class="px-2 py-1">&gt;</button></div><div class="grid grid-cols-7 gap-1 text-center text-xs"><div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div></div><div id="calendar-days" class="grid grid-cols-7 gap-1 text-center"></div>`;
+                const daysContainer = document.getElementById('calendar-days');
+                const month = date.getMonth(), year = date.getFullYear();
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                for (let i = 0; i < firstDay; i++) { daysContainer.innerHTML += `<div></div>`; }
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                    const isSelected = scheduledDates.includes(dayStr);
+                    daysContainer.innerHTML += `<div class="p-1 calendar-day cursor-pointer ${isSelected ? 'selected-date' : ''}" data-date="${dayStr}">${i}</div>`;
+                }
+                document.getElementById('prev-month').onclick = () => { date.setMonth(date.getMonth() - 1); draw(); };
+                document.getElementById('next-month').onclick = () => { date.setMonth(date.getMonth() + 1); draw(); };
+                document.querySelectorAll('.calendar-day').forEach(day => day.onclick = () => toggleSchedule(pet, day.dataset.date));
+            }
+            draw();
+        }
+
+        async function toggleSchedule(pet, dateStr) {
+            const petRef = doc(db, "pets", pet.id);
+            await runTransaction(db, async (transaction) => {
+                const petDoc = await transaction.get(petRef);
+                const scheduleRef = doc(db, "schedules", dateStr);
+                const scheduleDoc = await transaction.get(scheduleRef);
+                let petSchedules = petDoc.data()?.scheduledDates || [];
+                let scheduleData = scheduleDoc.exists() ? scheduleDoc.data() : { routes: {} };
+                const route = pet.defaultRoute;
+                if (!scheduleData.routes[route]) scheduleData.routes[route] = { pets: [], groups: {}, observations: [] };
+                if (petSchedules.includes(dateStr)) {
+                    petSchedules = petSchedules.filter(d => d !== dateStr);
+                    scheduleData.routes[route].pets = scheduleData.routes[route].pets.filter(p => p.id !== pet.id);
+                } else {
+                    petSchedules.push(dateStr);
+                    scheduleData.routes[route].pets.push({ id: pet.id, status: 'pendente' });
+                }
+                transaction.set(petRef, { scheduledDates: petSchedules }, { merge: true });
+                transaction.set(scheduleRef, scheduleData, { merge: true });
+            });
+            openPetModal(pet);
+        }
+
+        // --- ABA PAINEL KANBAN ---
+        function setupPainelTab() {
+            const dateFilter = document.getElementById('painel-date-filter');
+            dateFilter.valueAsDate = new Date();
+            dateFilter.addEventListener('change', loadScheduleForDate);
+            document.getElementById('painel-route-filter').addEventListener('change', renderKanbanBoard);
+            loadScheduleForDate();
+        }
+        
+        function loadScheduleForDate() {
+            const dateStr = document.getElementById('painel-date-filter').value;
+            if (!dateStr) { document.getElementById('kanban-board').innerHTML = ''; return; }
+            onSnapshot(doc(db, "schedules", dateStr), (doc) => {
+                currentSchedule = doc.exists() ? { id: doc.id, ...doc.data() } : null;
+                renderKanbanBoard();
+            });
         }
 
         function renderKanbanBoard() {
-            kanbanBoard.innerHTML = '';
-            const columns = [
-                { id: 'rota_1', title: 'Rota 1' }, { id: 'rota_2', title: 'Rota 2' },
-                { id: 'rota_3', title: 'Rota 3' }, { id: 'avulso', title: 'Avulso' }
-            ];
-            columns.forEach(column => {
-                const colEl = document.createElement('div');
-                colEl.className = 'kanban-column bg-gray-800 p-3 rounded-lg flex flex-col';
-                colEl.dataset.columnId = column.id;
-                colEl.innerHTML = `
-                    <div class="flex justify-between items-center mb-3">
-                        <h2 class="text-lg font-bold text-white">${column.title}</h2>
-                        <button data-route-id="${column.id}" class="group-mode-btn px-2 py-1 text-xs bg-blue-600 rounded hover:bg-blue-700">Agrupar</button>
-                    </div>
-                    <div data-route-id="${column.id}" class="observation-display text-sm bg-yellow-900/50 border border-yellow-700 p-2 rounded-md mb-3 hidden whitespace-pre-wrap"></div>
-                    <div id="groups-${column.id}" class="group-container flex-grow min-h-[200px] space-y-4 p-1"></div>`;
-                kanbanBoard.appendChild(colEl);
+            const board = document.getElementById('kanban-board');
+            const routeFilter = document.getElementById('painel-route-filter').value;
+            const routes = ["Rota 1", "Rota 2", "Rota 3", "Avulso"];
+            board.innerHTML = '';
+            routes.filter(r => routeFilter === 'all' || r === routeFilter).forEach(routeName => {
+                const column = document.createElement('div');
+                const routeId = routeName.replace(' ', '');
+                column.id = `column-${routeId}`;
+                column.className = 'kanban-column bg-gray-200 dark:bg-gray-800 rounded-lg p-3 flex flex-col gap-3';
+                column.innerHTML = `<h3 class="font-bold text-lg">${routeName}</h3><div class="flex gap-2"><button class="group-btn flex-1 text-sm py-1 px-2 rounded bg-blue-500 text-white" data-route="${routeName}">Agrupar</button><button class="add-obs-btn flex-1 text-sm py-1 px-2 rounded bg-green-500 text-white" data-route="${routeName}">OBS</button></div><div id="obs-container-${routeId}" class="space-y-1 text-xs"></div><div id="pets-container-${routeId}" class="space-y-3 flex-grow"></div>`;
+                board.appendChild(column);
+                renderKanbanColumnContent(routeName, currentSchedule?.routes?.[routeName] || {});
             });
         }
         
-        function handleKanbanRouteFilter() {
-            const selectedRoute = kanbanRouteFilter.value;
-            kanbanBoard.querySelectorAll('.kanban-column').forEach(col => {
-                const isVisible = selectedRoute === 'all' || col.dataset.columnId === selectedRoute;
-                col.classList.toggle('hidden', !isVisible);
+        function renderKanbanColumnContent(routeName, routeData) {
+            const routeId = routeName.replace(' ', '');
+            const obsContainer = document.getElementById(`obs-container-${routeId}`), petsContainer = document.getElementById(`pets-container-${routeId}`);
+            obsContainer.innerHTML = '';
+            (routeData.observations || []).forEach(obs => {
+                const obsEl = document.createElement('div');
+                obsEl.className = 'bg-yellow-100 dark:bg-yellow-900 p-1.5 rounded-md flex justify-between items-center';
+                obsEl.innerHTML = `<span>${obs.text}</span> <i class="fa-solid fa-trash-can cursor-pointer text-red-500 hover:text-red-700"></i>`;
+                obsEl.querySelector('i').onclick = () => deleteObservation(routeName, obs.id);
+                obsContainer.appendChild(obsEl);
             });
+            petsContainer.innerHTML = '';
+            const petsInRoute = (routeData.pets || []).map(p => ({ ...p, ...allPets.find(ap => ap.id === p.id) })).filter(p => p.petName);
+            Object.entries(routeData.groups || {}).forEach(([groupId, groupData]) => {
+                const groupContainer = document.createElement('div');
+                groupContainer.className = 'p-2 rounded-lg bg-gray-300 dark:bg-gray-900';
+                groupContainer.innerHTML = `<div class="flex justify-between items-center mb-2"><h4 class="font-bold">${groupData.name}</h4><div class="flex gap-2"><button class="edit-group-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button><button class="ungroup-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-sign-out-alt"></i></button></div></div><div class="space-y-2 group-pets-container"></div>`;
+                petsContainer.appendChild(groupContainer);
+                const groupPetsContainer = groupContainer.querySelector('.group-pets-container');
+                petsInRoute.filter(p => p.groupId === groupId).forEach(p => groupPetsContainer.appendChild(createKanbanPetCard(p, routeName, true)));
+            });
+            const ungroupedContainer = document.createElement('div');
+            ungroupedContainer.innerHTML = '<h4 class="text-sm font-semibold mt-4">Não Agrupados</h4>';
+            petsContainer.appendChild(ungroupedContainer);
+            petsInRoute.filter(p => !p.groupId).forEach(p => ungroupedContainer.appendChild(createKanbanPetCard(p, routeName, false)));
+            document.querySelectorAll('.group-btn').forEach(b => b.onclick = () => toggleGroupingMode(b.dataset.route, b));
+            document.querySelectorAll('.add-obs-btn').forEach(b => b.onclick = () => openObservationModal(b.dataset.route));
+            document.querySelectorAll('.edit-group-btn').forEach(b => b.onclick = () => toggleEditGroupMode(b.dataset.routeName, b.dataset.groupId, b));
+            document.querySelectorAll('.ungroup-btn').forEach(b => b.onclick = () => unGroup(b.dataset.routeName, b.dataset.groupId));
         }
-        
-        function openKanbanDetailModal(ficha, currentDate) {
-            const contentEl = document.getElementById('kanban-detail-content');
-            const serviceBadges = (ficha.tipoServico || []).map(s => `<span class="text-sm font-semibold bg-blue-500/30 text-blue-300 px-3 py-1 rounded-full">${s}</span>`).join('');
-            
-            let statusHTML = '';
-            if (ficha.rotaDesignada === 'avulso') {
-                const status = ficha.statusPorData?.[currentDate] || 'pendente';
-                let statusText = 'Pendente';
-                let statusColor = 'text-gray-400';
-                if (status === 'buscando') {
-                    statusText = 'Motorista Buscando';
-                    statusColor = 'text-yellow-400';
-                } else if (status === 'coletado') {
-                    statusText = 'Coletado';
-                    statusColor = 'text-green-400';
-                }
-                statusHTML = `<span class="font-bold ${statusColor}">${statusText}</span>`;
-            }
 
-            contentEl.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <p><strong class="text-gray-400 w-24 inline-block">Pet:</strong> <span class="font-semibold text-lg">${ficha.nomePet}</span></p>
-                    ${statusHTML}
-                </div>
-                <p><strong class="text-gray-400 w-24 inline-block">Tutor:</strong> ${ficha.nomeTutor}</p>
-                <p><strong class="text-gray-400 w-24 inline-block">Telefone:</strong> ${ficha.telefone || 'Não informado'}</p>
-                <div class="pt-2">
-                    <strong class="text-gray-400 block mb-1">Endereço:</strong>
-                    <p class="whitespace-pre-wrap pl-4 border-l-2 border-gray-600">${ficha.endereco || 'Não informado'}</p>
-                </div>
-                <div class="pt-2">
-                    <strong class="text-gray-400 block mb-2">Serviços:</strong>
-                    <div class="flex flex-wrap gap-2">
-                        ${serviceBadges || 'Nenhum'}
+        function createKanbanPetCard(pet, routeName, isGrouped) {
+            const card = document.createElement('div');
+            const serviceClass = getServiceColorClass(pet.services);
+            
+            card.className = `pet-card rounded-lg p-2 shadow flex justify-between items-center ${serviceClass} ${isGrouped ? 'group-pet' : 'ungrouped-pet-card'} ${pet.status === 'buscando' ? 'status-buscando' : ''} ${pet.status === 'coletado' ? 'status-coletado' : ''}`;
+            card.dataset.petId = pet.id;
+            let html = `<div class="flex flex-col"><h4 class="font-bold text-sm">${pet.petName}</h4></div><div class="flex items-center gap-1"><button class="add-to-group-btn hidden text-green-500" data-pet-id="${pet.id}"><i class="fa-solid fa-plus-circle"></i></button><button class="remove-from-group-btn hidden text-red-500" data-pet-id="${pet.id}"><i class="fa-solid fa-minus-circle"></i></button>`;
+            if (routeName === 'Avulso') html += `<button class="status-btn text-xs px-1.5 py-0.5 rounded bg-yellow-500 text-white" data-status="buscando">B</button><button class="status-btn text-xs px-1.5 py-0.5 rounded bg-green-500 text-white" data-status="coletado">C</button><button class="status-btn text-xs px-1.5 py-0.5 rounded bg-gray-500 text-white" data-status="pendente">R</button>`;
+            html += '</div>';
+            card.innerHTML = html;
+            card.querySelectorAll('.status-btn').forEach(b => b.onclick = () => setPetStatus(pet.id, routeName, b.dataset.status));
+            return card;
+        }
+        
+        function openObservationModal(routeName) {
+            const modalHTML = `
+                <h3 class="text-lg font-bold mb-4">Adicionar Observação para ${routeName}</h3>
+                <form id="obs-form">
+                    <textarea name="obs-text" class="w-full p-2 border rounded dark:bg-gray-700" placeholder="Digite a observação..."></textarea>
+                    <div class="mt-4 flex justify-end gap-2">
+                         <button type="button" id="modal-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white">Salvar</button>
                     </div>
-                </div>
+                </form>
             `;
-            kanbanDetailModal.classList.replace('hidden', 'flex');
-        }
-
-        // CARDS (FICHAS)
-        function loadFichas() {
-            fichasListContainer.innerHTML = `<div class="flex justify-center items-center h-full col-span-full"><div class="spinner !border-l-blue-500"></div></div>`;
-            const q = query(collection(db, "fichas"));
-            unsubscribeFichasListener = onSnapshot(q, (querySnapshot) => {
-                allFichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderFilteredFichas();
-            });
-        }
-
-        function renderFilteredFichas() {
-            const searchTerm = searchFichasInput.value.toLowerCase();
-            const routeFilterValue = filterFichasRoute.value;
-
-            const filteredFichas = allFichas.filter(ficha => {
-                const matchesSearch = (ficha.nomePet || '').toLowerCase().includes(searchTerm) || (ficha.nomeTutor || '').toLowerCase().includes(searchTerm);
-                const matchesRoute = routeFilterValue === 'all' || ficha.rotaDesignada === routeFilterValue;
-                return matchesSearch && matchesRoute;
-            });
-            
-            fichasListContainer.innerHTML = '';
-            if (filteredFichas.length === 0) {
-                fichasListContainer.innerHTML = `<p class="text-center text-gray-400 col-span-full">Nenhum card encontrado com os filtros atuais.</p>`;
-                return;
-            }
-            filteredFichas.forEach(ficha => renderFichaCard(ficha));
-        }
-        
-        function getCardColorClasses(services = []) {
-             if (services.includes('Clínica')) return 'bg-red-800 border-red-600';
-             if (services.includes('Hotel')) return 'bg-green-800 border-green-600';
-             if (services.includes('Creche')) return 'bg-green-600 border-green-500';
-             if (services.includes('Banho')) return 'bg-purple-800 border-purple-600';
-             if (services.includes('Outros')) return 'bg-gray-700 border-gray-600';
-             return 'bg-gray-800 border-gray-700';
-        }
-
-        function renderFichaCard(ficha) {
-            const rotaColors = {
-                rota_1: 'bg-blue-500/30 text-blue-300', rota_2: 'bg-green-500/30 text-green-300',
-                rota_3: 'bg-yellow-500/30 text-yellow-300', avulso: 'bg-indigo-500/30 text-indigo-300',
-            };
-            
-            const cardColorClasses = getCardColorClasses(ficha.tipoServico);
-            const textColorClass = 'text-gray-300';
-
-            const cardEl = document.createElement('div');
-            cardEl.className = `${cardColorClasses} p-4 rounded-xl shadow-md flex flex-col justify-between`;
-            cardEl.innerHTML = `
-                <div>
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="font-bold text-xl text-white">${ficha.nomePet}</p>
-                            <p class="${textColorClass}">Tutor: ${ficha.nomeTutor}</p>
-                        </div>
-                        <span class="text-xs font-semibold px-2 py-1 rounded-full ${rotaColors[ficha.rotaDesignada] || 'bg-gray-700'}">${(ficha.rotaDesignada || '').replace('_', ' ')}</span>
-                    </div>
-                </div>
-                <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
-                    <p class="text-sm ${textColorClass}"><i class="fas fa-calendar-alt mr-2"></i>${ficha.datasAgendadas?.length || 0} dias</p>
-                    <button data-ficha-id="${ficha.id}" class="edit-btn p-2 text-gray-400 hover:text-white"><i class="fas fa-pencil-alt"></i></button>
-                </div>
-            `;
-            cardEl.querySelector('.edit-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                openFichaForm(e.currentTarget.dataset.fichaId);
-            });
-            fichasListContainer.appendChild(cardEl);
-        }
-        
-        async function openFichaForm(fichaId) {
-            fichaForm.reset();
-            const saveButton = document.getElementById('save-ficha-btn');
-            deleteFichaBtn.classList.add('hidden');
-            document.getElementById('fichaId').value = fichaId || '';
-            scheduledDates = [];
-
-            if (fichaId) {
-                fichaFormTitle.textContent = "Editar Card";
-                saveButton.textContent = "Salvar Alterações";
-                try {
-                    const fichaSnap = await getDoc(doc(db, "fichas", fichaId));
-                    if (fichaSnap.exists()) {
-                        const ficha = fichaSnap.data();
-                        document.getElementById('nomePet').value = ficha.nomePet || '';
-                        document.getElementById('nomeTutor').value = ficha.nomeTutor || '';
-                        document.getElementById('telefone').value = ficha.telefone || '';
-                        document.getElementById('endereco').value = ficha.endereco || '';
-                        document.getElementById('rotaDesignada').value = ficha.rotaDesignada || 'rota_1';
-                        (ficha.tipoServico || []).forEach(s => { const el = document.querySelector(`input[name="tipoServico"][value="${s}"]`); if (el) el.checked = true; });
-                        scheduledDates = ficha.datasAgendadas || [];
-                    }
-                    deleteFichaBtn.classList.remove('hidden');
-                } catch (error) {
-                    console.error("Erro ao buscar ficha para edição:", error);
-                }
-            } else {
-                fichaFormTitle.textContent = "Novo Card de Agendamento";
-                saveButton.textContent = "Criar Card";
-            }
-            renderCalendar(currentYear, currentMonth);
-            fichaFormModal.classList.replace('hidden', 'flex');
-        }
-
-        async function handleSaveFicha(e) {
-            e.preventDefault();
-            const fichaId = document.getElementById('fichaId').value;
-            
-            fichaFormModal.classList.replace('flex', 'hidden');
-
-            const servicos = Array.from(document.querySelectorAll('input[name="tipoServico"]:checked')).map(cb => cb.value);
-            const fichaData = {
-                nomePet: document.getElementById('nomePet').value,
-                nomeTutor: document.getElementById('nomeTutor').value,
-                telefone: document.getElementById('telefone').value,
-                endereco: document.getElementById('endereco').value,
-                rotaDesignada: document.getElementById('rotaDesignada').value,
-                tipoServico: servicos,
-                datasAgendadas: scheduledDates,
-            };
-
-            try {
-                if (fichaId) {
-                    const docSnap = await getDoc(doc(db, "fichas", fichaId));
-                    fichaData.grupo = docSnap.exists() ? docSnap.data().grupo : '';
-                    fichaData.ordem = docSnap.exists() ? docSnap.data().ordem : Date.now();
-                    fichaData.statusPorData = docSnap.exists() ? docSnap.data().statusPorData : {};
-                    await setDoc(doc(db, "fichas", fichaId), fichaData);
-                } else {
-                    fichaData.ordem = Date.now();
-                    fichaData.grupo = '';
-                    fichaData.statusPorData = {}; // Adicionar mapa de status para novos cards
-                    await addDoc(collection(db, "fichas"), fichaData);
-                }
-                showToast('Card salvo com sucesso!');
-            } catch (error) {
-                console.error("Erro ao salvar ficha: ", error);
-                showToast('Falha ao salvar o card.', false);
-            }
-        }
-        
-        async function handleDeleteFicha() {
-            const fichaId = document.getElementById('fichaId').value;
-            if (!fichaId) return;
-            try {
-                await deleteDoc(doc(db, "fichas", fichaId));
-                fichaFormModal.classList.replace('flex', 'hidden');
-                showToast('Card excluído com sucesso.');
-            } catch (error) {
-                console.error("Erro ao excluir ficha:", error);
-                showToast('Falha ao excluir o card.', false);
-            }
-        }
-        
-        async function handleSaveObservation(e) {
-            e.preventDefault();
-            const selectedRoute = document.getElementById('observation-route-select').value;
-            const observationText = document.getElementById('observation-text').value;
-            const selectedDate = dateFilter.value;
-            if(!selectedDate || !selectedRoute) return;
-
-            const obsDocRef = doc(db, "rotas", selectedDate);
-            try {
-                await setDoc(obsDocRef, { [selectedRoute]: observationText }, { merge: true });
-                observationModal.classList.replace('flex', 'hidden');
-                showToast('Observação salva!');
-            } catch (error) {
-                console.error("Erro ao salvar observação:", error);
-                showToast("Falha ao salvar observação.", false);
-            }
-        }
-
-        // CALENDÁRIO
-        function renderCalendar(year, month) {
-            calendarGrid.innerHTML = '';
-            const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-            calendarHeader.textContent = `${monthNames[month]} ${year}`;
-            const firstDay = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-            for (let i = 0; i < firstDay; i++) calendarGrid.insertAdjacentHTML('beforeend', `<div></div>`);
-            for (let day = 1; day <= daysInMonth; day++) {
-                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isSelected = scheduledDates.includes(dateStr);
-                calendarGrid.insertAdjacentHTML('beforeend', `<div class="calendar-day p-2 ${isSelected ? 'selected' : ''}" data-date="${dateStr}">${day}</div>`);
-            }
-            scheduledDatesCount.textContent = scheduledDates.length;
-        }
-
-        function handleCalendarClick(event) {
-            const dayEl = event.target.closest('.calendar-day');
-            if (!dayEl || dayEl.classList.contains('disabled')) return;
-            const dateStr = dayEl.dataset.date;
-            const dateIndex = scheduledDates.indexOf(dateStr);
-            if (dateIndex > -1) {
-                scheduledDates.splice(dateIndex, 1);
-                dayEl.classList.remove('selected');
-            } else {
-                scheduledDates.push(dateStr);
-                dayEl.classList.add('selected');
-            }
-            scheduledDates.sort();
-            scheduledDatesCount.textContent = scheduledDates.length;
-        }
-
-        // --- INICIALIZAÇÃO E LISTENERS ---
-        async function startApp() {
-            try {
-                await enableIndexedDbPersistence(db);
-            } catch (err) {
-                console.warn("Falha ao ativar persistência offline:", err.code);
-            }
-
-            onAuthStateChanged(auth, user => {
-                if (user) {
-                    loginScreen.classList.add('hidden');
-                    appScreen.classList.replace('hidden', 'flex');
-                    userEmailDisplay.textContent = user.email || 'Anônimo';
-                    initializeAppLogic();
-                } else {
-                    loginScreen.classList.remove('hidden');
-                    appScreen.classList.replace('flex', 'hidden');
-                    if (unsubscribeFichasListener) unsubscribeFichasListener();
-                    if (unsubscribeKanbanListener) unsubscribeKanbanListener();
-                }
-            });
-        
-            document.getElementById('logout-btn').addEventListener('click', () => firebaseSignOut(auth));
-            document.getElementById('login-form').addEventListener('submit', async (e) => {
+            openModal(modalHTML);
+            document.getElementById('modal-cancel-btn').onclick = closeModal;
+            document.getElementById('obs-form').addEventListener('submit', (e) => {
                 e.preventDefault();
-                try {
-                    await signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value);
-                } catch (error) {
-                    document.getElementById('login-error').textContent = "Email ou senha inválidos.";
-                }
+                const text = e.target['obs-text'].value;
+                if(text) saveObservation(routeName, text);
+                closeModal();
             });
         }
 
-        function initializeAppLogic() {
-            toggleViews(true); 
-            
-            viewToggleBtn.addEventListener('click', () => {
-                const isKanbanVisible = !kanbanView.classList.contains('hidden');
-                toggleViews(!isKanbanVisible);
+        async function updateSchedule(updateFn) {
+            if (!currentSchedule) return;
+            const scheduleRef = doc(db, "schedules", currentSchedule.id);
+            await runTransaction(db, async transaction => {
+                const scheduleDoc = await transaction.get(scheduleRef);
+                const scheduleData = scheduleDoc.data();
+                const newScheduleData = updateFn(scheduleData);
+                transaction.set(scheduleRef, newScheduleData);
             });
-            
-            addNewFichaBtn.addEventListener('click', () => openFichaForm(null));
-            closeFichaFormModalBtn.addEventListener('click', () => fichaFormModal.classList.replace('flex', 'hidden'));
-            fichaForm.addEventListener('submit', handleSaveFicha);
-            deleteFichaBtn.addEventListener('click', handleDeleteFicha);
+        }
+        
+        async function setPetStatus(petId, routeName, newStatus) { await updateSchedule(data => { const petIndex = data.routes[routeName].pets.findIndex(p => p.id === petId); if (petIndex > -1) data.routes[routeName].pets[petIndex].status = newStatus; return data; }); }
+        async function saveObservation(routeName, text) { await updateSchedule(data => { if (!data.routes[routeName].observations) data.routes[routeName].observations = []; data.routes[routeName].observations.push({ id: crypto.randomUUID(), text }); return data; }); }
+        async function deleteObservation(routeName, obsId) { await updateSchedule(data => { data.routes[routeName].observations = data.routes[routeName].observations.filter(o => o.id !== obsId); return data; }); }
+        function toggleGroupingMode(routeName, btn) {
+            const column = btn.closest('.kanban-column');
+            column.classList.toggle('selection-mode');
+            if(column.classList.contains('selection-mode')) {
+                btn.textContent = 'Criar Remessa';
+                btn.onclick = () => createRemessa(routeName, btn);
+                column.querySelectorAll('.ungrouped-pet-card').forEach(card => card.onclick = () => { card.classList.toggle('selected-for-grouping'); const petId = card.dataset.petId; if(selectedForGrouping.includes(petId)) selectedForGrouping = selectedForGrouping.filter(id => id !== petId); else selectedForGrouping.push(petId); });
+            } else {
+                btn.textContent = 'Agrupar';
+                selectedForGrouping = [];
+                column.querySelectorAll('.pet-card').forEach(card => card.classList.remove('selected-for-grouping'));
+                btn.onclick = () => toggleGroupingMode(routeName, btn);
+            }
+        }
+        function createRemessa(routeName, btn) {
+            if (selectedForGrouping.length === 0) { alert('Selecione pelo menos um pet!'); return; }
+            const modalHTML = `<h3 class="text-lg font-bold mb-4">Nome da Remessa</h3><form id="group-form"><input name="group-name" class="w-full p-2 border rounded dark:bg-gray-700" placeholder="Ex: Manhã - Zona Sul"><div class="mt-4 flex justify-end"><button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white">Criar</button></div></form>`;
+            openModal(modalHTML);
+            document.getElementById('group-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const groupName = e.target['group-name'].value; if(!groupName) return;
+                const groupId = crypto.randomUUID();
+                await updateSchedule(data => {
+                    if (!data.routes[routeName].groups) data.routes[routeName].groups = {};
+                    data.routes[routeName].groups[groupId] = { name: groupName };
+                    selectedForGrouping.forEach(petId => { const petIndex = data.routes[routeName].pets.findIndex(p => p.id === petId); if (petIndex > -1) data.routes[routeName].pets[petIndex].groupId = groupId; });
+                    return data;
+                });
+                selectedForGrouping = [];
+                toggleGroupingMode(routeName, btn);
+                closeModal();
+            });
+        }
+        async function unGroup(routeName, groupId) { await updateSchedule(data => { delete data.routes[routeName].groups[groupId]; data.routes[routeName].pets.forEach(pet => { if(pet.groupId === groupId) delete pet.groupId; }); return data; }); }
+        function toggleEditGroupMode(routeName, groupId, btn) {
+            const column = btn.closest('.kanban-column'), groupContainer = btn.closest('.p-2.rounded-lg');
+            groupContainer.classList.toggle('edit-group-mode');
+            if (groupContainer.classList.contains('edit-group-mode')) {
+                btn.innerHTML = `<i class="fa-solid fa-check"></i>`;
+                column.querySelectorAll('.ungrouped-pet-card .add-to-group-btn').forEach(b => { b.onclick = () => addPetToGroup(routeName, b.dataset.petId, groupId); });
+                groupContainer.querySelectorAll('.group-pet .remove-from-group-btn').forEach(b => { b.onclick = () => removePetFromGroup(routeName, b.dataset.petId); });
+            } else btn.innerHTML = `<i class="fa-solid fa-pencil"></i>`;
+        }
+        async function addPetToGroup(routeName, petId, groupId) { await updateSchedule(data => { const idx = data.routes[routeName].pets.findIndex(p => p.id === petId); if(idx > -1) data.routes[routeName].pets[idx].groupId = groupId; return data; }); }
+        async function removePetFromGroup(routeName, petId) { await updateSchedule(data => { const idx = data.routes[routeName].pets.findIndex(p => p.id === petId); if(idx > -1) delete data.routes[routeName].pets[idx].groupId; return data; }); }
 
-            dateFilter.addEventListener('change', () => fetchAndDisplayKanbanData(dateFilter.value));
-            kanbanRouteFilter.addEventListener('change', handleKanbanRouteFilter);
-            
-            searchFichasInput.addEventListener('input', renderFilteredFichas);
-            filterFichasRoute.addEventListener('change', renderFilteredFichas);
-            
-            document.getElementById('close-kanban-detail-modal-btn').addEventListener('click', () => kanbanDetailModal.classList.replace('flex', 'hidden'));
-            
-            addObservationBtn.addEventListener('click', () => observationModal.classList.replace('hidden', 'flex'));
-            document.getElementById('close-observation-modal-btn').addEventListener('click', () => observationModal.classList.replace('flex', 'hidden'));
-            document.getElementById('observation-form').addEventListener('submit', handleSaveObservation);
-
-            kanbanBoard.addEventListener('click', e => {
-                const statusBtn = e.target.closest('.status-btn');
-                if (statusBtn) {
-                    const fichaId = statusBtn.parentElement.dataset.fichaId;
-                    const newStatus = statusBtn.dataset.status;
-                    const currentDate = dateFilter.value;
-                    if (fichaId && newStatus && currentDate) {
-                        updatePetStatus(fichaId, currentDate, newStatus);
-                    }
-                    return;
-                }
-
-                if(e.target.classList.contains('group-mode-btn')) {
-                    const btn = e.target;
-                    const column = btn.closest('.kanban-column');
-                    const routeId = btn.dataset.routeId;
-                    
-                    const isInSelectionMode = column.classList.toggle('selection-mode');
-                    
-                    btn.textContent = isInSelectionMode ? 'Criar Remessa' : 'Agrupar';
-                    if (isInSelectionMode) {
-                        btn.classList.replace('bg-blue-600', 'bg-green-600');
-                        btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
-                    } else {
-                        btn.classList.replace('bg-green-600', 'bg-blue-600');
-                         btn.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
-                        
-                        const selectedCards = column.querySelectorAll('.selected-for-grouping');
-                        if (selectedCards.length > 0) {
-                            handleGroupCreation(routeId, selectedCards);
-                        }
-                        column.querySelectorAll('.kanban-pet-card').forEach(c => c.classList.remove('selected-for-grouping'));
-                    }
-                } else if (e.target.classList.contains('ungroup-btn')) {
-                    handleUngroup(e.target.dataset.routeId, e.target.dataset.groupName);
-                } else if (e.target.classList.contains('add-to-group-btn')) {
-                    const btn = e.target;
-                    const column = btn.closest('.kanban-column');
-                    const groupContainer = btn.closest('.bg-gray-900\\/50');
-                    const wasInAddMode = groupContainer.classList.contains('add-to-group-mode');
-                    
-                    document.querySelectorAll('.add-to-group-mode').forEach(c => c.classList.remove('add-to-group-mode'));
-                    document.querySelectorAll('.add-to-group-btn').forEach(b => { b.textContent = 'Adicionar'; b.classList.replace('bg-green-600', 'bg-blue-600'); });
-                    
-                    if(!wasInAddMode) {
-                        groupContainer.classList.add('add-to-group-mode');
-                        btn.textContent = 'Confirmar';
-                        btn.classList.replace('bg-blue-600', 'bg-green-600');
-                    } else {
-                        const selectedCards = column.querySelectorAll('.ungrouped-list .selected-for-grouping');
-                        if (selectedCards.length > 0) {
-                             handleAddToGroup(btn.dataset.routeId, btn.dataset.groupName, selectedCards);
-                        }
+        // --- ABA FROTA ---
+        async function ensureFleetDataExists() {
+            const vehicleNames = ["Strada", "Montana", "Fiorino"];
+            for (const name of vehicleNames) {
+                const vehicleRef = doc(db, "fleet", name);
+                const docSnap = await getDoc(vehicleRef);
+                if (!docSnap.exists()) {
+                    try {
+                        await setDoc(vehicleRef, {
+                            name: name,
+                            pendingMaintenance: [],
+                            history: []
+                        });
+                    } catch (error) {
+                        console.error(`Failed to create document for ${name}:`, error);
                     }
                 }
+            }
+        }
+        
+        function setupFrotaTab() {
+            onSnapshot(collection(db, "fleet"), (snapshot) => {
+                snapshot.docs.forEach(doc => {
+                    fleetData[doc.id] = { id: doc.id, ...doc.data() };
+                });
+                renderFleetCards();
             });
+        }
 
-            async function handleGroupCreation(routeId, selectedCardsNodeList) {
-                const selectedFichaIds = Array.from(selectedCardsNodeList).map(card => card.dataset.fichaId);
-                const groupName = `Remessa ${document.querySelectorAll(`#groups-${routeId} > div`).length + 1}`;
+        function renderFleetCards() {
+            const grid = document.getElementById('fleet-grid');
+            grid.innerHTML = '';
+            const vehicleNames = ["Strada", "Montana", "Fiorino"];
+
+            vehicleNames.forEach(name => {
+                const vehicle = fleetData[name];
+                const card = document.createElement('div');
+                card.className = 'fleet-card bg-white dark:bg-gray-800 rounded-lg shadow p-6 flex flex-col items-center justify-center gap-3 cursor-pointer';
                 
-                const batch = writeBatch(db);
-                selectedFichaIds.forEach(id => {
-                    batch.update(doc(db, "fichas", id), { grupo: groupName });
-                });
-                await batch.commit();
-                showToast("Remessa criada com sucesso!");
-            }
+                const pendingCount = vehicle?.pendingMaintenance?.length || 0;
 
-            async function handleUngroup(routeId, groupName) {
-                const q = query(collection(db, "fichas"), where("rotaDesignada", "==", routeId), where("grupo", "==", groupName));
-                const snapshot = await getDocs(q);
-                const batch = writeBatch(db);
-                snapshot.forEach(doc => {
-                    batch.update(doc.ref, { grupo: "" });
-                });
-                await batch.commit();
-                showToast("Remessa desfeita.");
-            }
+                card.innerHTML = `
+                    <i class="fa-solid fa-truck text-5xl text-blue-500"></i>
+                    <h3 class="text-2xl font-bold">${name}</h3>
+                    <div class="text-center">
+                        <p class="text-lg font-semibold ${pendingCount > 0 ? 'text-red-500' : 'text-green-500'}">${pendingCount}</p>
+                        <p class="text-sm text-gray-500">Manutenções Pendentes</p>
+                    </div>
+                `;
+                card.addEventListener('click', () => openFleetModal(name));
+                grid.appendChild(card);
+            });
+        }
 
-            prevMonthBtn.addEventListener('click', () => { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar(currentYear, currentMonth); });
-            nextMonthBtn.addEventListener('click', () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar(currentYear, currentMonth); });
-            calendarGrid.addEventListener('click', handleCalendarClick);
+        function openFleetModal(vehicleId) {
+            const vehicle = fleetData[vehicleId] || { pendingMaintenance: [], history: [] };
+            const sortedHistory = (vehicle.history || []).sort((a,b) => (b.completedAt?.seconds || 0) - (a.completedAt?.seconds || 0));
+
+            let modalHTML = `
+                <div class="flex justify-between items-start">
+                    <h2 class="text-3xl font-bold mb-4">${vehicleId}</h2>
+                    <button id="modal-close-btn" class="text-2xl">&times;</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                    <div>
+                        <h3 class="font-semibold text-xl mb-3 border-b pb-2">Manutenções Pendentes</h3>
+                        <div id="pending-list" class="space-y-2">${renderTaskList(vehicle.pendingMaintenance, vehicleId, true)}</div>
+                        <button id="add-task-btn" class="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Adicionar Tarefa</button>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xl mb-3 border-b pb-2">Histórico</h3>
+                        <div id="history-list" class="space-y-2">${renderTaskList(sortedHistory, vehicleId, false)}</div>
+                    </div>
+                </div>
+            `;
+            openModal(modalHTML);
+            document.getElementById('modal-close-btn').onclick = closeModal;
+            attachTaskListeners(vehicleId);
         }
         
-        startApp();
+        function renderTaskList(tasks, vehicleId, isPending) {
+            if (!tasks || tasks.length === 0) return `<p class="text-sm text-gray-500">Nenhuma tarefa aqui.</p>`;
+            return tasks.map(task => `
+                <div class="flex items-center gap-3 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
+                     ${isPending ? `<button class="complete-task-btn text-green-500 hover:text-green-400" data-task-id="${task.id}"><i class="fa-solid fa-check-circle"></i></button>` : '<i class="fa-solid fa-check-circle text-green-500"></i>'}
+                    <div class="flex-grow">
+                         <p class="${!isPending ? 'task-completed' : ''}">${task.description}</p>
+                         <div class="text-xs text-gray-400 flex gap-4">
+                            ${task.createdAt ? `<span>Criado: ${new Date(task.createdAt).toLocaleDateString()}</span>` : ''}
+                            ${!isPending && task.completedAt?.toDate ? `<span>Concluído: ${task.completedAt.toDate().toLocaleDateString()}</span>` : ''}
+                         </div>
+                    </div>
+                    <button class="edit-task-btn" data-task-id="${task.id}" data-is-pending="${isPending}"><i class="fa-solid fa-pencil text-gray-500 hover:text-blue-500"></i></button>
+                    <button class="delete-task-btn" data-task-id="${task.id}" data-is-pending="${isPending}"><i class="fa-solid fa-trash text-gray-500 hover:text-red-500"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function attachTaskListeners(vehicleId) {
+            document.getElementById('add-task-btn')?.addEventListener('click', () => openTaskEditModal(vehicleId));
+            document.querySelectorAll('.edit-task-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                const taskId = e.currentTarget.dataset.taskId;
+                const isPending = e.currentTarget.dataset.isPending === 'true';
+                const taskList = isPending ? fleetData[vehicleId].pendingMaintenance : fleetData[vehicleId].history;
+                const task = taskList.find(t => t.id === taskId);
+                openTaskEditModal(vehicleId, task, isPending);
+            }));
+            document.querySelectorAll('.delete-task-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                 const taskId = e.currentTarget.dataset.taskId;
+                 const isPending = e.currentTarget.dataset.isPending === 'true';
+                 openConfirmationModal("Tem a certeza que quer apagar esta tarefa?", () => deleteTask(vehicleId, taskId, isPending));
+            }));
+            document.querySelectorAll('.complete-task-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                const taskId = e.currentTarget.dataset.taskId;
+                openConfirmationModal("Marcar esta tarefa como concluída?", () => completeTask(vehicleId, taskId));
+            }));
+        }
+
+        function openTaskEditModal(vehicleId, task = {}, isPending = true) {
+            const isEditing = !!task.id;
+            const today = new Date().toISOString().split('T')[0];
+            const modalHTML = `
+                <h3 class="text-lg font-bold mb-4">${isEditing ? 'Editar Tarefa' : 'Nova Tarefa'}</h3>
+                <form id="task-form" class="space-y-4">
+                    <div>
+                        <label for="task-desc" class="block text-sm font-medium">Descrição</label>
+                        <textarea id="task-desc" name="task-desc" class="w-full p-2 border rounded dark:bg-gray-700" required>${task.description || ''}</textarea>
+                    </div>
+                    <div>
+                        <label for="createdAt" class="block text-sm font-medium">Data de Criação</label>
+                        <input type="date" id="createdAt" name="createdAt" class="w-full p-2 border rounded dark:bg-gray-700" value="${task.createdAt || today}" ${isEditing ? 'readonly' : ''}>
+                    </div>
+                    <div class="mt-4 flex justify-end gap-3">
+                        <button type="button" id="modal-cancel-task-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Salvar</button>
+                    </div>
+                </form>
+            `;
+            openModal(modalHTML);
+            document.getElementById('modal-cancel-task-btn').onclick = () => openFleetModal(vehicleId);
+            document.getElementById('task-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const description = e.target['task-desc'].value;
+                const createdAt = e.target['createdAt'].value;
+                saveTask(vehicleId, { ...task, description, createdAt }, isEditing, isPending);
+            });
+        }
         
+        async function saveTask(vehicleId, task, isEditing, isPending) {
+            const vehicleRef = doc(db, "fleet", vehicleId);
+            if (isEditing) {
+                const listName = isPending ? 'pendingMaintenance' : 'history';
+                const list = [...fleetData[vehicleId][listName]];
+                const taskIndex = list.findIndex(t => t.id === task.id);
+                if (taskIndex > -1) list[taskIndex] = task;
+                await updateDoc(vehicleRef, { [listName]: list });
+            } else {
+                task.id = crypto.randomUUID();
+                await updateDoc(vehicleRef, { pendingMaintenance: arrayUnion(task) });
+            }
+            openFleetModal(vehicleId); // Refresh modal
+        }
+
+        async function deleteTask(vehicleId, taskId, isPending) {
+            const vehicleRef = doc(db, "fleet", vehicleId);
+            const listName = isPending ? 'pendingMaintenance' : 'history';
+            const taskToDelete = fleetData[vehicleId][listName].find(t => t.id === taskId);
+            await updateDoc(vehicleRef, { [listName]: arrayRemove(taskToDelete) });
+            openFleetModal(vehicleId);
+        }
+        
+        async function completeTask(vehicleId, taskId) {
+            const vehicleRef = doc(db, "fleet", vehicleId);
+            await runTransaction(db, async (transaction) => {
+                const vehicleDoc = await transaction.get(vehicleRef);
+                if (!vehicleDoc.exists()) throw "Document does not exist!";
+                
+                const data = vehicleDoc.data();
+                const pendingList = data.pendingMaintenance || [];
+                const historyList = data.history || [];
+                
+                const taskIndex = pendingList.findIndex(t => t.id === taskId);
+                if (taskIndex === -1) return;
+
+                const [taskToMove] = pendingList.splice(taskIndex, 1);
+                
+                // Firestore can't use serverTimestamp in arrayUnion in a transaction.
+                // So we create a JS date object instead.
+                const completedTask = { ...taskToMove, completedAt: new Date() };
+                historyList.unshift(completedTask);
+
+                transaction.update(vehicleRef, {
+                    pendingMaintenance: pendingList,
+                    history: historyList
+                });
+            });
+            openFleetModal(vehicleId);
+        }
+
     </script>
 </body>
 </html>
