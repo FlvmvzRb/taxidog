@@ -23,21 +23,18 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         .pet-card, .fleet-card { transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
-        .pet-card:hover, .fleet-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        #pet-cards-grid .pet-card:hover, .fleet-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
         .kanban-column { min-height: 400px; }
 
-        /* Estilos de Status e Seleção */
-        .status-buscando { border-left: 4px solid #f59e0b; } /* amber-500 */
-        .status-coletado { border-left: 4px solid #10b981; } /* emerald-500 */
-        
         /* Modo de Seleção para Agrupamento */
         .selection-mode .ungrouped-pet-card { cursor: pointer; opacity: 0.6; }
         .selection-mode .ungrouped-pet-card:hover { opacity: 1; border-color: #3b82f6; }
         .selection-mode .selected-for-grouping { border: 2px solid #3b82f6; box-shadow: 0 0 0 2px #3b82f6; opacity: 1; }
         
         /* Modo de Edição de Grupo */
-        .edit-group-mode .group-pet .remove-from-group-btn { display: inline-flex !important; }
-        .edit-group-mode .ungrouped-pet-card .add-to-group-btn { display: inline-flex !important; }
+        .add-to-group-btn, .remove-from-group-btn { display: none; }
+        .edit-mode-active .ungrouped-pet-card .add-to-group-btn { display: inline-flex !important; cursor: pointer; }
+        .edit-mode-active .editing-this-group .group-pet .remove-from-group-btn { display: inline-flex !important; cursor: pointer; }
 
         /* Estilos do Calendário */
         .calendar-day.selected-date { background-color: #2563eb; color: white; border-radius: 50%; }
@@ -46,7 +43,7 @@
         /* Estilo para tarefa concluída */
         .task-completed { text-decoration: line-through; color: #6b7280; } /* gray-500 */
         
-        /* Card Kanban por Serviço */
+        /* Cores por Serviço */
         .service-banho { background-color: #ddd6fe; color: #5b21b6; }
         .dark .service-banho { background-color: #5b21b6; color: #ddd6fe; }
         .service-creche { background-color: #bbf7d0; color: #166534; }
@@ -57,6 +54,12 @@
         .dark .service-clinica { background-color: #ca8a04; color: #fde68a; }
         .service-outros { background-color: #d1d5db; color: #1f2937; }
         .dark .service-outros { background-color: #4b5563; color: #d1d5db; }
+
+        /* Cores de Status - Sobrescrevem as de serviço */
+        .status-bg-buscando { background-color: #fcd34d !important; color: #78350f !important; }
+        .dark .status-bg-buscando { background-color: #d97706 !important; color: #fffbeb !important; }
+        .status-bg-coletado { background-color: #4ade80 !important; color: #15803d !important; }
+        .dark .status-bg-coletado { background-color: #22c55e !important; color: #dcfce7 !important; }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -368,12 +371,45 @@
             
             try {
                 if (isEditing) {
+                    const oldRoute = pet.defaultRoute;
+                    const newRoute = petData.defaultRoute;
+
+                    if (oldRoute && newRoute && oldRoute !== newRoute) {
+                        const petDocSnap = await getDoc(doc(db, "pets", pet.id));
+                        const scheduledDates = petDocSnap.data()?.scheduledDates || [];
+                        
+                        for (const dateStr of scheduledDates) {
+                            const scheduleRef = doc(db, "schedules", dateStr);
+                            await runTransaction(db, async (transaction) => {
+                                const scheduleDoc = await transaction.get(scheduleRef);
+                                if (!scheduleDoc.exists()) return;
+
+                                const data = scheduleDoc.data();
+                                
+                                if (data.routes?.[oldRoute]?.pets) {
+                                    const petIndex = data.routes[oldRoute].pets.findIndex(p => p.id === pet.id);
+                                    if (petIndex > -1) {
+                                        const [petEntry] = data.routes[oldRoute].pets.splice(petIndex, 1);
+                                        
+                                        if (!data.routes[newRoute]) {
+                                            data.routes[newRoute] = { pets: [], groups: {}, observations: [] };
+                                        }
+                                        data.routes[newRoute].pets.push(petEntry);
+                                        transaction.update(scheduleRef, { routes: data.routes });
+                                    }
+                                }
+                            });
+                        }
+                    }
                     await setDoc(doc(db, "pets", pet.id), petData, { merge: true });
                 } else {
                     await addDoc(collection(db, "pets"), petData);
                 }
                 closeModal();
-            } catch (error) { console.error("Erro ao salvar pet:", error); }
+            } catch (error) { 
+                console.error("Erro ao salvar pet:", error);
+                alert("Ocorreu um erro ao salvar: " + error.message);
+            }
         }
 
         function deletePet(pet) {
@@ -479,16 +515,25 @@
             const petsInRoute = (routeData.pets || []).map(p => ({ ...p, ...allPets.find(ap => ap.id === p.id) })).filter(p => p.petName);
             Object.entries(routeData.groups || {}).forEach(([groupId, groupData]) => {
                 const groupContainer = document.createElement('div');
-                groupContainer.className = 'p-2 rounded-lg bg-gray-300 dark:bg-gray-900';
-                groupContainer.innerHTML = `<div class="flex justify-between items-center mb-2"><h4 class="font-bold">${groupData.name}</h4><div class="flex gap-2"><button class="edit-group-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button><button class="ungroup-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-sign-out-alt"></i></button></div></div><div class="space-y-2 group-pets-container"></div>`;
+                groupContainer.className = 'group-container p-2 rounded-lg bg-gray-300 dark:bg-gray-900';
+                const gridClass = routeName === 'Avulso' ? 'space-y-2' : 'grid grid-cols-2 gap-2';
+                groupContainer.innerHTML = `<div class="flex justify-between items-center mb-2"><h4 class="font-bold">${groupData.name}</h4><div class="flex gap-2"><button class="edit-group-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button><button class="ungroup-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-sign-out-alt"></i></button></div></div><div class="${gridClass} group-pets-container"></div>`;
                 petsContainer.appendChild(groupContainer);
                 const groupPetsContainer = groupContainer.querySelector('.group-pets-container');
                 petsInRoute.filter(p => p.groupId === groupId).forEach(p => groupPetsContainer.appendChild(createKanbanPetCard(p, routeName, true)));
             });
+            
+            const ungroupedTitle = document.createElement('h4');
+            ungroupedTitle.className = 'text-sm font-semibold mt-4';
+            ungroupedTitle.textContent = 'Não Agrupados';
+            petsContainer.appendChild(ungroupedTitle);
+            
             const ungroupedContainer = document.createElement('div');
-            ungroupedContainer.innerHTML = '<h4 class="text-sm font-semibold mt-4">Não Agrupados</h4>';
+            ungroupedContainer.className = routeName === 'Avulso' ? 'space-y-2' : 'grid grid-cols-2 gap-2';
             petsContainer.appendChild(ungroupedContainer);
+
             petsInRoute.filter(p => !p.groupId).forEach(p => ungroupedContainer.appendChild(createKanbanPetCard(p, routeName, false)));
+            
             document.querySelectorAll('.group-btn').forEach(b => b.onclick = () => toggleGroupingMode(b.dataset.route, b));
             document.querySelectorAll('.add-obs-btn').forEach(b => b.onclick = () => openObservationModal(b.dataset.route));
             document.querySelectorAll('.edit-group-btn').forEach(b => b.onclick = () => toggleEditGroupMode(b.dataset.routeName, b.dataset.groupId, b));
@@ -499,16 +544,56 @@
             const card = document.createElement('div');
             const serviceClass = getServiceColorClass(pet.services);
             
-            card.className = `pet-card rounded-lg p-2 shadow flex justify-between items-center ${serviceClass} ${isGrouped ? 'group-pet' : 'ungrouped-pet-card'} ${pet.status === 'buscando' ? 'status-buscando' : ''} ${pet.status === 'coletado' ? 'status-coletado' : ''}`;
+            let statusClass = '';
+            if (pet.status === 'buscando') statusClass = 'status-bg-buscando';
+            else if (pet.status === 'coletado') statusClass = 'status-bg-coletado';
+
+            card.className = `kanban-pet-card rounded-lg p-2 shadow flex justify-between items-center cursor-pointer ${isGrouped ? 'group-pet' : 'ungrouped-pet-card'} ${statusClass || serviceClass}`;
             card.dataset.petId = pet.id;
-            let html = `<div class="flex flex-col"><h4 class="font-bold text-sm">${pet.petName}</h4></div><div class="flex items-center gap-1"><button class="add-to-group-btn hidden text-green-500" data-pet-id="${pet.id}"><i class="fa-solid fa-plus-circle"></i></button><button class="remove-from-group-btn hidden text-red-500" data-pet-id="${pet.id}"><i class="fa-solid fa-minus-circle"></i></button>`;
+            
+            let html = `<div class="flex flex-col"><h4 class="font-bold text-sm">${pet.petName}</h4></div><div class="flex items-center gap-1"><button class="add-to-group-btn text-green-500" data-pet-id="${pet.id}"><i class="fa-solid fa-plus-circle"></i></button><button class="remove-from-group-btn text-red-500" data-pet-id="${pet.id}"><i class="fa-solid fa-minus-circle"></i></button>`;
             if (routeName === 'Avulso') html += `<button class="status-btn text-xs px-1.5 py-0.5 rounded bg-yellow-500 text-white" data-status="buscando">B</button><button class="status-btn text-xs px-1.5 py-0.5 rounded bg-green-500 text-white" data-status="coletado">C</button><button class="status-btn text-xs px-1.5 py-0.5 rounded bg-gray-500 text-white" data-status="pendente">R</button>`;
             html += '</div>';
             card.innerHTML = html;
+
+            card.addEventListener('click', (e) => {
+                const column = e.currentTarget.closest('.kanban-column');
+                if (e.target.closest('button') || column.classList.contains('selection-mode') || column.classList.contains('edit-mode-active')) {
+                    return;
+                }
+                openKanbanPetDetailsModal(pet);
+            });
+            
             card.querySelectorAll('.status-btn').forEach(b => b.onclick = () => setPetStatus(pet.id, routeName, b.dataset.status));
             return card;
         }
         
+        function openKanbanPetDetailsModal(pet) {
+            if (!pet || !pet.petName) return;
+            const servicesHTML = pet.services && pet.services.length > 0 
+                ? pet.services.map(s => `<span class="bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-full text-xs font-medium">${s}</span>`).join(' ')
+                : '<span class="text-xs text-gray-500">Nenhum serviço</span>';
+
+            const modalHTML = `
+                <div class="flex justify-between items-start">
+                    <h2 class="text-3xl font-bold mb-4">${pet.petName}</h2>
+                    <button id="modal-close-btn" class="text-2xl">&times;</button>
+                </div>
+                <div class="space-y-4 mt-4 text-left">
+                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Tutor</h3><p class="text-lg">${pet.tutorName || 'Não informado'}</p></div>
+                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Telefone</h3><p class="text-lg">${pet.phone || 'Não informado'}</p></div>
+                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Endereço</h3><p class="text-lg">${pet.address || 'Não informado'}</p></div>
+                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Rota Padrão</h3><p class="text-lg">${pet.defaultRoute || 'Não informada'}</p></div>
+                    <div><h3 class="font-semibold text-sm text-gray-500">Serviços Agendados</h3><div class="flex flex-wrap gap-2 mt-1 p-2">${servicesHTML}</div></div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button id="modal-close-btn-2" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Fechar</button>
+                </div>`;
+            openModal(modalHTML);
+            document.getElementById('modal-close-btn').onclick = closeModal;
+            document.getElementById('modal-close-btn-2').onclick = closeModal;
+        }
+
         function openObservationModal(routeName) {
             const modalHTML = `
                 <h3 class="text-lg font-bold mb-4">Adicionar Observação para ${routeName}</h3>
@@ -578,14 +663,31 @@
             });
         }
         async function unGroup(routeName, groupId) { await updateSchedule(data => { delete data.routes[routeName].groups[groupId]; data.routes[routeName].pets.forEach(pet => { if(pet.groupId === groupId) delete pet.groupId; }); return data; }); }
+        
         function toggleEditGroupMode(routeName, groupId, btn) {
-            const column = btn.closest('.kanban-column'), groupContainer = btn.closest('.p-2.rounded-lg');
-            groupContainer.classList.toggle('edit-group-mode');
-            if (groupContainer.classList.contains('edit-group-mode')) {
-                btn.innerHTML = `<i class="fa-solid fa-check"></i>`;
-                column.querySelectorAll('.ungrouped-pet-card .add-to-group-btn').forEach(b => { b.onclick = () => addPetToGroup(routeName, b.dataset.petId, groupId); });
-                groupContainer.querySelectorAll('.group-pet .remove-from-group-btn').forEach(b => { b.onclick = () => removePetFromGroup(routeName, b.dataset.petId); });
-            } else btn.innerHTML = `<i class="fa-solid fa-pencil"></i>`;
+            const column = btn.closest('.kanban-column');
+            const groupContainer = btn.closest('.group-container');
+            
+            const isEditingNow = column.classList.contains('edit-mode-active');
+            
+            // Turn off any other editing group first
+            document.querySelectorAll('.edit-mode-active').forEach(c => c.classList.remove('edit-mode-active'));
+            document.querySelectorAll('.editing-this-group').forEach(g => g.classList.remove('editing-this-group'));
+            document.querySelectorAll('.edit-group-btn').forEach(b => b.innerHTML = `<i class="fa-solid fa-pencil"></i>`);
+            
+            if (!isEditingNow || groupContainer.dataset.editingGroupId !== groupId) {
+                 column.classList.add('edit-mode-active');
+                 groupContainer.classList.add('editing-this-group');
+                 groupContainer.dataset.editingGroupId = groupId;
+                 btn.innerHTML = `<i class="fa-solid fa-check"></i>`;
+
+                column.querySelectorAll('.ungrouped-pet-card .add-to-group-btn').forEach(addBtn => {
+                    addBtn.onclick = () => addPetToGroup(routeName, addBtn.dataset.petId, groupId);
+                });
+                groupContainer.querySelectorAll('.group-pet .remove-from-group-btn').forEach(removeBtn => {
+                    removeBtn.onclick = () => removePetFromGroup(routeName, removeBtn.dataset.petId);
+                });
+            }
         }
         async function addPetToGroup(routeName, petId, groupId) { await updateSchedule(data => { const idx = data.routes[routeName].pets.findIndex(p => p.id === petId); if(idx > -1) data.routes[routeName].pets[idx].groupId = groupId; return data; }); }
         async function removePetFromGroup(routeName, petId) { await updateSchedule(data => { const idx = data.routes[routeName].pets.findIndex(p => p.id === petId); if(idx > -1) delete data.routes[routeName].pets[idx].groupId; return data; }); }
@@ -776,8 +878,6 @@
 
                 const [taskToMove] = pendingList.splice(taskIndex, 1);
                 
-                // Firestore can't use serverTimestamp in arrayUnion in a transaction.
-                // So we create a JS date object instead.
                 const completedTask = { ...taskToMove, completedAt: new Date() };
                 historyList.unshift(completedTask);
 
