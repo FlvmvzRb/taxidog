@@ -159,6 +159,7 @@
         // --- GESTÃO DE ESTADO CENTRALIZADO ---
         const AppState = {
             fleet: {},
+            addresses: [],
             config: { 
                 manualRoutes: [],
             },
@@ -531,24 +532,7 @@
                 new Sortable(container, {
                     group: 'manual-kanban',
                     animation: 150,
-                    onEnd: async function (evt) {
-                        const itemEl = evt.item;
-                        const toList = evt.to;
-                        const fromList = evt.from;
-
-                        const petId = itemEl.dataset.petId;
-                        const toColumn = toList.closest('.manual-kanban-column');
-                        const fromColumn = fromList.closest('.manual-kanban-column');
-
-                        if (!toColumn || !fromColumn) return;
-
-                        const toRouteName = toColumn.dataset.routeName;
-                        const fromRouteName = fromColumn.dataset.routeName;
-
-                        if (fromRouteName !== toRouteName) {
-                            await moveManualPet(petId, fromRouteName, toRouteName);
-                        }
-                    }
+                    onEnd: handlePetMove
                 });
             });
         }
@@ -666,38 +650,50 @@
             }
         }
 
-        async function moveManualPet(petId, fromRoute, toRoute) {
+        async function handlePetMove(evt) {
+            const itemEl = evt.item;
+            const toList = evt.to;
+            const fromList = evt.from;
+            const newIndex = evt.newDraggableIndex;
+
+            const petId = itemEl.dataset.petId;
+            const toRouteName = toList.closest('.manual-kanban-column').dataset.routeName;
+            const fromRouteName = fromList.closest('.manual-kanban-column').dataset.routeName;
+            
             const dateStr = document.getElementById('manual-painel-date-filter').value;
             const scheduleData = AppState.schedules.manual;
 
-            if (!scheduleData || !scheduleData.routes || !scheduleData.routes[fromRoute]) {
-                console.error("Dados de origem não encontrados para a movimentação.");
-                return;
-            }
-
-            const petToMove = scheduleData.routes[fromRoute].pets.find(p => p.id === petId);
-
+            const petToMove = scheduleData.routes[fromRouteName]?.pets.find(p => p.id === petId);
             if (!petToMove) {
-                console.error("Pet não encontrado na rota de origem.");
+                console.error("Could not find pet to move in AppState. Re-rendering.");
+                renderManualKanbanBoard(); 
                 return;
             }
-            
-            const petForNewRoute = { ...petToMove };
-            delete petForNewRoute.groupId;
 
             const updatePayload = {};
-            const fromPath = `routes.${fromRoute}.pets`;
-            const toPath = `routes.${toRoute}.pets`;
+            const fromPets = scheduleData.routes[fromRouteName].pets.filter(p => p.id !== petId);
 
-            updatePayload[fromPath] = arrayRemove(petToMove);
-            updatePayload[toPath] = arrayUnion(petForNewRoute);
+            let toPets;
+            if (fromRouteName === toRouteName) {
+                toPets = [...fromPets];
+            } else {
+                toPets = [...(scheduleData.routes[toRouteName]?.pets || [])];
+            }
+            
+            toPets.splice(newIndex, 0, petToMove);
+
+            if (fromRouteName === toRouteName) {
+                updatePayload[`routes.${toRouteName}.pets`] = toPets;
+            } else {
+                updatePayload[`routes.${fromRouteName}.pets`] = fromPets;
+                updatePayload[`routes.${toRouteName}.pets`] = toPets;
+            }
 
             try {
                 await updateManualSchedule(dateStr, updatePayload);
             } catch (error) {
-                console.error("Erro ao mover o pet:", error);
-                openInfoModal("Ocorreu um erro ao tentar mover o pet. A página será atualizada.", "Erro");
-                renderManualKanbanBoard();
+                console.error("Error updating pet order/route:", error);
+                openInfoModal("Ocorreu um erro ao salvar a nova ordem. A visualização será atualizada.", "Erro");
             }
         }
 
