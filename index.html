@@ -15,6 +15,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- SortableJS for Drag and Drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <!-- Estilos Customizados -->
     <style>
@@ -22,48 +25,29 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        .pet-card, .fleet-card { transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
-        #pet-cards-grid .pet-card:hover, .fleet-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
-        .kanban-column, .manual-kanban-column { min-height: 400px; }
+        .fleet-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .fleet-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        .manual-kanban-column { min-height: 400px; }
+        .manual-pet-card { cursor: grab; }
+        .manual-pet-card:active { cursor: grabbing; }
 
-        /* Estilos do Calendário */
-        .calendar-day.selected-date { background-color: #2563eb; color: white; border-radius: 50%; }
-        .calendar-day:not(.disabled-date):hover { background-color: #dbeafe; border-radius: 50%; }
-        
+        /* Estilo para o "fantasma" do card sendo arrastado */
+        .sortable-ghost {
+            opacity: 0.4;
+            background: #c8ebfb;
+        }
+
         /* Estilo para tarefa concluída */
         .task-completed { text-decoration: line-through; color: #6b7280; } /* gray-500 */
         
-        /* Modos de Agrupamento e Edição (para ambos os painéis) */
-        .selection-mode .ungrouped-manual-pet-card,
-        .selection-mode .ungrouped-pet-card { cursor: pointer; opacity: 0.6; }
-        .selection-mode .ungrouped-manual-pet-card:hover,
-        .selection-mode .ungrouped-pet-card:hover { opacity: 1; border-color: #3b82f6; }
+        /* Modos de Agrupamento e Edição */
+        .selection-mode .ungrouped-manual-pet-card { cursor: pointer; opacity: 0.6; }
+        .selection-mode .ungrouped-manual-pet-card:hover { opacity: 1; border-color: #3b82f6; }
         .selection-mode .selected-for-grouping { border: 2px solid #3b82f6; box-shadow: 0 0 0 2px #3b82f6; opacity: 1; }
         
         .add-to-group-btn, .remove-from-group-btn { display: none; }
-        .edit-mode-active .ungrouped-manual-pet-card .add-to-group-btn,
-        .edit-mode-active .ungrouped-pet-card .add-to-group-btn { display: inline-flex !important; cursor: pointer; }
-        
-        .edit-mode-active .editing-this-group .manual-group-pet .remove-from-group-btn,
-        .edit-mode-active .editing-this-group .group-pet .remove-from-group-btn { display: inline-flex !important; cursor: pointer; }
-
-        /* Cores por Serviço */
-        .service-banho { background-color: #ddd6fe; color: #5b21b6; }
-        .dark .service-banho { background-color: #5b21b6; color: #ddd6fe; }
-        .service-creche { background-color: #bbf7d0; color: #166534; }
-        .dark .service-creche { background-color: #16a34a; color: #bbf7d0; }
-        .service-hotel { background-color: #bfdbfe; color: #1e40af; }
-        .dark .service-hotel { background-color: #2563eb; color: #bfdbfe; }
-        .service-clinica { background-color: #fde68a; color: #92400e; }
-        .dark .service-clinica { background-color: #ca8a04; color: #fde68a; }
-        .service-outros { background-color: #d1d5db; color: #1f2937; }
-        .dark .service-outros { background-color: #4b5563; color: #d1d5db; }
-
-        /* Cores de Status - Sobrescrevem as de serviço */
-        .status-bg-buscando { background-color: #fcd34d !important; color: #78350f !important; }
-        .dark .status-bg-buscando { background-color: #d97706 !important; color: #fffbeb !important; }
-        .status-bg-coletado { background-color: #4ade80 !important; color: #15803d !important; }
-        .dark .status-bg-coletado { background-color: #22c55e !important; color: #dcfce7 !important; }
+        .edit-mode-active .ungrouped-manual-pet-card .add-to-group-btn { display: inline-flex !important; cursor: pointer; }
+        .edit-mode-active .editing-this-group .manual-group-pet .remove-from-group-btn { display: inline-flex !important; cursor: pointer; }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -92,9 +76,7 @@
                  <div class="flex items-center gap-4">
                      <h1 class="text-2xl font-bold text-blue-600"><i class="fa-solid fa-paw"></i> PetBoard</h1>
                      <nav class="hidden md:flex items-center gap-2">
-                         <button data-tab="painel" class="nav-tab active-tab px-3 py-1 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"><i class="fa-solid fa-columns mr-2"></i>Painel</button>
-                         <button data-tab="manual_painel" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-pen-ruler mr-2"></i>Painel Manual</button>
-                         <button data-tab="cards" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-id-card mr-2"></i>Cards</button>
+                         <button data-tab="manual_painel" class="nav-tab active-tab px-3 py-1 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"><i class="fa-solid fa-pen-ruler mr-2"></i>Painel Manual</button>
                          <button data-tab="frota" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-truck mr-2"></i>Frota</button>
                          <button data-tab="config" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-gear mr-2"></i>Configurações</button>
                      </nav>
@@ -106,9 +88,7 @@
              </div>
              <div class="md:hidden border-t dark:border-gray-700">
                  <nav class="flex justify-around items-center p-1">
-                     <button data-tab="painel" class="nav-tab active-tab flex-1 text-center py-2 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" title="Painel"><i class="fa-solid fa-columns"></i></button>
-                     <button data-tab="manual_painel" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700" title="Painel Manual"><i class="fa-solid fa-pen-ruler"></i></button>
-                     <button data-tab="cards" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700" title="Cards"><i class="fa-solid fa-id-card"></i></button>
+                     <button data-tab="manual_painel" class="nav-tab active-tab flex-1 text-center py-2 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" title="Painel Manual"><i class="fa-solid fa-pen-ruler"></i></button>
                      <button data-tab="frota" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700" title="Frota"><i class="fa-solid fa-truck"></i></button>
                      <button data-tab="config" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700" title="Configurações"><i class="fa-solid fa-gear"></i></button>
                  </nav>
@@ -116,41 +96,17 @@
         </header>
 
         <main class="pt-28 md:pt-20">
-            <!-- ABA PAINEL (AUTOMÁTICO) -->
-            <div id="painel-tab" class="tab-content p-2 md:p-4">
-                <div class="mb-4 flex flex-wrap items-center gap-4">
-                    <input type="date" id="painel-date-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
-                    <select id="painel-route-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
-                        <option value="all">Todas as Rotas</option>
-                        <option value="Rota 1">Rota 1</option><option value="Rota 2">Rota 2</option><option value="Rota 3">Rota 3</option><option value="Avulso">Avulso</option>
-                    </select>
-                </div>
-                <div id="kanban-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
-            </div>
-
             <!-- ABA PAINEL MANUAL -->
-            <div id="manual_painel-tab" class="tab-content hidden p-2 md:p-4">
+            <div id="manual_painel-tab" class="tab-content p-2 md:p-4">
                 <div class="mb-4 flex flex-wrap items-center gap-4">
                      <input type="date" id="manual-painel-date-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
                      <select id="manual-painel-route-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5 flex-grow">
                          <option value="all">Todas as Rotas Manuais</option>
                     </select>
-                    <button id="import-agendas-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-download mr-2"></i>Importar Agendas</button>
+                    <button id="import-csv-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-file-csv mr-2"></i>Importar Planilha (CSV)</button>
+                    <input type="file" id="csv-file-input" class="hidden" accept=".csv">
                 </div>
                 <div id="manual-kanban-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
-            </div>
-
-            <!-- ABA CARDS -->
-            <div id="cards-tab" class="tab-content hidden p-2 md:p-4">
-                 <div class="mb-4 flex flex-wrap items-center gap-4">
-                     <input type="search" id="card-search-input" placeholder="Buscar por pet ou tutor..." class="flex-grow bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
-                     <select id="card-route-filter" class="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg px-3 py-1.5">
-                         <option value="all">Todas as Rotas</option>
-                         <option value="Rota 1">Rota 1</option><option value="Rota 2">Rota 2</option><option value="Rota 3">Rota 3</option><option value="Avulso">Avulso</option>
-                     </select>
-                     <button id="new-pet-card-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-plus mr-2"></i>Novo Card</button>
-                 </div>
-                 <div id="pet-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"></div>
             </div>
 
             <!-- ABA FROTA -->
@@ -186,8 +142,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, setDoc, deleteDoc, getDoc, runTransaction, updateDoc, arrayUnion, arrayRemove, serverTimestamp, query, where, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
-
+        
         // --- CONFIGURAÇÃO E INICIALIZAÇÃO ---
         const firebaseConfig = {
             apiKey: "AIzaSyCKOXqvwo9wA7pMDdoLMMtUiQSKDW9bygU",
@@ -197,20 +152,17 @@
             messagingSenderId: "419627111718",
             appId: "1:419627111718:web:805c187a118d199aa9dde7"
         };
-        const app = initializeApp(firebaseConfig, "petboardApp");
+        const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const functions = getFunctions(app, 'us-central1'); // Inicializa a instância do Functions globalmente
 
         // --- GESTÃO DE ESTADO CENTRALIZADO ---
         const AppState = {
-            pets: [],
             fleet: {},
             config: { 
                 manualRoutes: [],
             },
             schedules: {
-                automatic: null,
                 manual: null,
             },
             ui: {
@@ -257,8 +209,6 @@
         async function initializeAppLogic(user) {
             await ensureFleetDataExists();
             setupNavigation();
-            setupCardsTab();
-            setupPainelTab();
             setupFrotaTab();
             setupConfigTab(); 
             setupManualPainelTab();
@@ -274,7 +224,6 @@
                     document.querySelectorAll(`.nav-tab[data-tab="${tabName}"]`).forEach(t => t.classList.add('active-tab', 'bg-blue-100', 'dark:bg-blue-900', 'text-blue-700', 'dark:text-blue-300'));
                     tabContents.forEach(content => content.classList.add('hidden'));
                     document.getElementById(`${tabName}-tab`).classList.remove('hidden');
-                    if (tabName === 'painel') loadScheduleForDate();
                     if (tabName === 'manual_painel') loadManualScheduleForDate();
                 });
             });
@@ -311,17 +260,6 @@
             document.getElementById('do-confirm-btn').onclick = () => { onConfirm(); closeModal(); };
             document.getElementById('cancel-confirm-btn').onclick = closeModal;
         }
-
-        // --- HELPERS ---
-        function getServiceColorClass(services) {
-            if (!services || services.length === 0) return 'service-outros';
-            const mainService = services[0].toLowerCase();
-            if (mainService.includes('banho')) return 'service-banho';
-            if (mainService.includes('creche')) return 'service-creche';
-            if (mainService.includes('hotel')) return 'service-hotel';
-            if (mainService.includes('clinica')) return 'service-clinica';
-            return 'service-outros';
-        }
         
         // --- ABA CONFIGURAÇÕES ---
         function setupConfigTab() {
@@ -332,14 +270,13 @@
                     AppState.config = {...AppState.config, ...data};
                 } else {
                     setDoc(configRef, { 
-                        manualRoutes: ["Rota Manhã", "Rota Tarde", "Importados do Dia"],
+                        manualRoutes: ["Rota 1", "Rota 2", "Rota 3", "Avulso"],
                     });
                 }
                 renderManualRoutesList();
                 populateManualRouteFilter();
             });
 
-            // Salvar rotas manuais
             const manualRouteForm = document.getElementById('add-manual-route-def-form');
             manualRouteForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -375,7 +312,13 @@
                 routes.forEach(routeName => {
                     const div = document.createElement('div');
                     div.className = 'flex justify-between items-center bg-gray-100 dark:bg-gray-700 p-2 rounded-md';
-                    div.innerHTML = `<span>${routeName}</span><button class="delete-manual-route-def-btn text-red-500 hover:text-red-400" data-route-name="${routeName}"><i class="fa-solid fa-trash"></i></button>`;
+                    div.innerHTML = `
+                        <span>${routeName}</span>
+                        <div class="flex gap-3">
+                            <button class="edit-manual-route-def-btn text-blue-500 hover:text-blue-400" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button>
+                            <button class="delete-manual-route-def-btn text-red-500 hover:text-red-400" data-route-name="${routeName}"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    `;
                     listContainer.appendChild(div);
                 });
 
@@ -388,8 +331,76 @@
                         });
                     };
                 });
+
+                document.querySelectorAll('.edit-manual-route-def-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        const oldRouteName = btn.dataset.routeName;
+                        openEditManualRouteModal(oldRouteName);
+                    };
+                });
+
             } else {
                 listContainer.innerHTML = `<p class="text-gray-500 text-sm">Nenhuma rota manual definida.</p>`;
+            }
+        }
+        
+        function openEditManualRouteModal(oldName) {
+            const modalHTML = `
+                <h3 class="text-lg font-bold mb-4">Editar Nome da Rota</h3>
+                <form id="edit-route-form">
+                    <input name="new-route-name" class="w-full p-2 border rounded dark:bg-gray-700" required value="${oldName}">
+                    <div class="mt-4 flex justify-end gap-2">
+                         <button type="button" id="modal-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white">Salvar</button>
+                    </div>
+                </form>
+            `;
+            openModal(modalHTML);
+            document.getElementById('modal-cancel-btn').onclick = closeModal;
+            document.getElementById('edit-route-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newName = e.target['new-route-name'].value.trim();
+                const button = e.target.querySelector('button[type="submit"]');
+                button.disabled = true;
+                button.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Salvando...`;
+                
+                try {
+                    await saveManualRouteEdit(oldName, newName);
+                    closeModal();
+                } catch (error) {
+                    console.error("Erro ao salvar edição da rota:", error);
+                    openInfoModal(error.message, "Erro");
+                } finally {
+                     button.disabled = false;
+                     button.textContent = 'Salvar';
+                }
+            });
+        }
+
+        async function saveManualRouteEdit(oldName, newName) {
+            if (!newName) {
+                throw new Error("O nome da rota não pode estar vazio.");
+            }
+            if (oldName === newName) {
+                return; // Nenhuma alteração necessária
+            }
+            if (AppState.config.manualRoutes.includes(newName)) {
+                throw new Error(`A rota "${newName}" já existe.`);
+            }
+
+            const configRef = doc(db, 'settings', 'app_config');
+            const newRoutesList = AppState.config.manualRoutes.map(r => r === oldName ? newName : r);
+            await updateDoc(configRef, { manualRoutes: newRoutesList });
+
+            const schedulesSnapshot = await getDocs(collection(db, "manual_schedules"));
+            for (const scheduleDoc of schedulesSnapshot.docs) {
+                const scheduleData = scheduleDoc.data();
+                if (scheduleData.routes && scheduleData.routes[oldName]) {
+                    const updatedRoutes = { ...scheduleData.routes };
+                    updatedRoutes[newName] = updatedRoutes[oldName];
+                    delete updatedRoutes[oldName];
+                    await updateDoc(doc(db, "manual_schedules", scheduleDoc.id), { routes: updatedRoutes });
+                }
             }
         }
 
@@ -402,7 +413,10 @@
             const routeFilter = document.getElementById('manual-painel-route-filter');
             routeFilter.addEventListener('change', renderManualKanbanBoard);
             
-            document.getElementById('import-agendas-btn').addEventListener('click', importExternalAgendas);
+            document.getElementById('import-csv-btn').addEventListener('click', () => {
+                document.getElementById('csv-file-input').click();
+            });
+            document.getElementById('csv-file-input').addEventListener('change', handleCsvFile);
 
             loadManualScheduleForDate();
         }
@@ -492,7 +506,7 @@
                                 <button class="ungroup-manual-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-sign-out-alt"></i></button>
                             </div>
                         </div>
-                        <div class="space-y-2 manual-group-pets-container"></div>
+                        <div class="manual-group-pets-container space-y-2"></div>
                     `;
                     petsContainer.appendChild(groupContainer);
                     const groupPetsContainer = groupContainer.querySelector('.manual-group-pets-container');
@@ -500,7 +514,7 @@
                 });
 
                 const ungroupedContainer = document.createElement('div');
-                ungroupedContainer.className = 'space-y-2 mt-3';
+                ungroupedContainer.className = 'ungrouped-pets-container space-y-2 mt-3'; // Classe específica para o container de não agrupados
                 petsContainer.appendChild(ungroupedContainer);
                 allPetsInRoute.filter(p => !p.groupId).forEach(p => ungroupedContainer.appendChild(createManualKanbanPetCard(p, routeName, false)));
             });
@@ -510,19 +524,47 @@
             document.querySelectorAll('.manual-group-btn').forEach(btn => btn.onclick = (e) => toggleManualGroupingMode(e.currentTarget.dataset.routeName, e.currentTarget));
             document.querySelectorAll('.edit-manual-group-btn').forEach(btn => btn.onclick = (e) => toggleEditManualGroupMode(e.currentTarget.dataset.routeName, e.currentTarget.dataset.groupId, e.currentTarget));
             document.querySelectorAll('.ungroup-manual-btn').forEach(btn => btn.onclick = (e) => unGroupManual(e.currentTarget.dataset.routeName, e.currentTarget.dataset.groupId));
+            
+            // Inicializar o Drag-and-Drop
+            const petContainers = board.querySelectorAll('.ungrouped-pets-container, .manual-group-pets-container');
+            petContainers.forEach(container => {
+                new Sortable(container, {
+                    group: 'manual-kanban',
+                    animation: 150,
+                    onEnd: async function (evt) {
+                        const itemEl = evt.item;
+                        const toList = evt.to;
+                        const fromList = evt.from;
+
+                        const petId = itemEl.dataset.petId;
+                        const toColumn = toList.closest('.manual-kanban-column');
+                        const fromColumn = fromList.closest('.manual-kanban-column');
+
+                        if (!toColumn || !fromColumn) return;
+
+                        const toRouteName = toColumn.dataset.routeName;
+                        const fromRouteName = fromColumn.dataset.routeName;
+
+                        if (fromRouteName !== toRouteName) {
+                            await moveManualPet(petId, fromRouteName, toRouteName);
+                        }
+                    }
+                });
+            });
         }
 
         function createManualKanbanPetCard(pet, routeName, isGrouped) {
             const card = document.createElement('div');
-            card.className = `bg-white dark:bg-gray-700 p-2 rounded-md shadow flex justify-between items-center ${isGrouped ? 'manual-group-pet' : 'ungrouped-manual-pet-card'}`;
+            card.className = `bg-white dark:bg-gray-700 p-2 rounded-md shadow flex justify-between items-center manual-pet-card ${isGrouped ? 'manual-group-pet' : 'ungrouped-manual-pet-card'}`;
             card.dataset.petId = pet.id;
 
             card.innerHTML = `
                 <span class="font-semibold">${pet.name}</span>
-                <div class="flex items-center gap-1">
+                <div class="flex items-center gap-2">
                     <button class="add-to-group-btn text-green-500" data-pet-id="${pet.id}"><i class="fa-solid fa-plus-circle"></i></button>
                     <button class="remove-from-group-btn text-red-500" data-pet-id="${pet.id}"><i class="fa-solid fa-minus-circle"></i></button>
-                    <button class="delete-manual-pet-btn text-gray-500 hover:text-red-500" data-route-name="${routeName}" data-pet-id="${pet.id}"><i class="fa-solid fa-times"></i></button>
+                    <button class="edit-manual-pet-btn text-blue-500 hover:text-blue-400" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button>
+                    <button class="delete-manual-pet-btn text-red-500 hover:text-red-400" data-route-name="${routeName}"><i class="fa-solid fa-times"></i></button>
                 </div>
             `;
             
@@ -530,8 +572,52 @@
                 e.stopPropagation();
                 deleteManualPet(routeName, pet.id);
             };
+
+            card.querySelector('.edit-manual-pet-btn').onclick = (e) => {
+                e.stopPropagation();
+                openEditManualPetModal(pet, routeName);
+            };
             
             return card;
+        }
+
+        function openEditManualPetModal(pet, routeName) {
+            const modalHTML = `
+                <h3 class="text-lg font-bold mb-4">Editar Nome do Pet</h3>
+                <form id="edit-manual-pet-form">
+                    <input name="new-pet-name" class="w-full p-2 border rounded dark:bg-gray-700" required value="${pet.name}">
+                    <div class="mt-4 flex justify-end gap-2">
+                         <button type="button" id="modal-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white">Salvar</button>
+                    </div>
+                </form>
+            `;
+            openModal(modalHTML);
+            document.getElementById('modal-cancel-btn').onclick = closeModal;
+            document.getElementById('edit-manual-pet-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newName = e.target['new-pet-name'].value.trim();
+                if (newName) {
+                    await saveManualPetEdit(routeName, pet, newName);
+                }
+                closeModal();
+            });
+        }
+
+        async function saveManualPetEdit(routeName, petToEdit, newName) {
+            const dateStr = document.getElementById('manual-painel-date-filter').value;
+            const routeData = AppState.schedules.manual?.routes?.[routeName];
+            if (!routeData) return;
+
+            const updatedPets = routeData.pets.map(p => {
+                if (p.id === petToEdit.id) {
+                    return { ...p, name: newName };
+                }
+                return p;
+            });
+
+            const updatePath = `routes.${routeName}.pets`;
+            await updateManualSchedule(dateStr, { [updatePath]: updatedPets });
         }
         
         function openAddManualPetModal(routeName) {
@@ -577,6 +663,41 @@
             if (petToDelete) {
                 const updatePath = `routes.${routeName}.pets`;
                 await updateManualSchedule(dateStr, { [updatePath]: arrayRemove(petToDelete) });
+            }
+        }
+
+        async function moveManualPet(petId, fromRoute, toRoute) {
+            const dateStr = document.getElementById('manual-painel-date-filter').value;
+            const scheduleData = AppState.schedules.manual;
+
+            if (!scheduleData || !scheduleData.routes || !scheduleData.routes[fromRoute]) {
+                console.error("Dados de origem não encontrados para a movimentação.");
+                return;
+            }
+
+            const petToMove = scheduleData.routes[fromRoute].pets.find(p => p.id === petId);
+
+            if (!petToMove) {
+                console.error("Pet não encontrado na rota de origem.");
+                return;
+            }
+            
+            const petForNewRoute = { ...petToMove };
+            delete petForNewRoute.groupId;
+
+            const updatePayload = {};
+            const fromPath = `routes.${fromRoute}.pets`;
+            const toPath = `routes.${toRoute}.pets`;
+
+            updatePayload[fromPath] = arrayRemove(petToMove);
+            updatePayload[toPath] = arrayUnion(petForNewRoute);
+
+            try {
+                await updateManualSchedule(dateStr, updatePayload);
+            } catch (error) {
+                console.error("Erro ao mover o pet:", error);
+                openInfoModal("Ocorreu um erro ao tentar mover o pet. A página será atualizada.", "Erro");
+                renderManualKanbanBoard();
             }
         }
 
@@ -761,418 +882,98 @@
             await updateManualSchedule(dateStr, { [petsPath]: updatedPets });
         }
         
-        // --- CÓDIGO DAS OUTRAS ABAS (Cards, Painel Automático, Frota) ---
-        // (O código para as outras abas permanece o mesmo da versão anterior)
-        function setupCardsTab() {
-            onSnapshot(collection(db, 'pets'), (snapshot) => {
-                AppState.pets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                applyCardFiltersAndRender();
-                if(!document.getElementById('painel-tab').classList.contains('hidden')) {
-                    loadScheduleForDate();
-                }
-            });
-            document.getElementById('new-pet-card-btn').addEventListener('click', () => openPetModal());
-            document.getElementById('card-search-input').addEventListener('input', applyCardFiltersAndRender);
-            document.getElementById('card-route-filter').addEventListener('change', applyCardFiltersAndRender);
-        }
-        
-        function applyCardFiltersAndRender() {
-            const searchTerm = document.getElementById('card-search-input').value.toLowerCase();
-            const selectedRoute = document.getElementById('card-route-filter').value;
-            const filteredPets = AppState.pets.filter(pet => (pet.petName.toLowerCase().includes(searchTerm) || pet.tutorName.toLowerCase().includes(searchTerm)) && (selectedRoute === 'all' || pet.defaultRoute === selectedRoute));
-            renderPetCards(filteredPets);
-        }
-
-        function renderPetCards(pets) {
-            const grid = document.getElementById('pet-cards-grid');
-            grid.innerHTML = pets.length ? '' : `<p class="col-span-full text-center text-gray-500">Nenhum pet encontrado.</p>`;
-            pets.forEach(pet => {
-                const card = document.createElement('div');
-                const serviceClass = getServiceColorClass(pet.services);
-                card.className = `pet-card rounded-lg shadow p-4 flex flex-col gap-2 cursor-pointer ${serviceClass}`;
-                card.innerHTML = `<h3 class="font-bold text-lg">${pet.petName}</h3><p class="text-sm"><i class="fa-solid fa-user mr-2"></i>${pet.tutorName}</p><p class="text-sm"><i class="fa-solid fa-route mr-2"></i>${pet.defaultRoute}</p>`;
-                card.addEventListener('click', () => openPetModal(pet));
-                grid.appendChild(card);
-            });
-        }
-        
-        async function openPetModal(pet = {}) {
-            const isEditing = !!pet.id;
-            const petDoc = isEditing ? (await getDoc(doc(db, "pets", pet.id))).data() : {};
-            const scheduledDates = petDoc?.scheduledDates || [];
-            const services = petDoc?.services || [];
-            
-            const modalHTML = `
-                <form id="pet-form">
-                    <h2 class="text-2xl font-bold mb-6">${isEditing ? 'Editar Ficha' : 'Nova Ficha'}</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input type="text" name="petName" placeholder="Nome do Pet" required class="w-full p-2 border rounded dark:bg-gray-700" value="${pet.petName || ''}">
-                        <input type="text" name="tutorName" placeholder="Nome do Tutor" required class="w-full p-2 border rounded dark:bg-gray-700" value="${pet.tutorName || ''}">
-                        <input type="tel" name="phone" placeholder="Telefone" class="w-full p-2 border rounded dark:bg-gray-700" value="${pet.phone || ''}">
-                        <select name="defaultRoute" required class="w-full p-2 border rounded dark:bg-gray-700">
-                            <option value="Rota 1" ${pet.defaultRoute === 'Rota 1' ? 'selected' : ''}>Rota 1</option>
-                            <option value="Rota 2" ${pet.defaultRoute === 'Rota 2' ? 'selected' : ''}>Rota 2</option>
-                            <option value="Rota 3" ${pet.defaultRoute === 'Rota 3' ? 'selected' : ''}>Rota 3</option>
-                            <option value="Avulso" ${pet.defaultRoute === 'Avulso' ? 'selected' : ''}>Avulso</option>
-                        </select>
-                        <textarea name="address" placeholder="Endereço" class="w-full p-2 border rounded md:col-span-2 dark:bg-gray-700">${pet.address || ''}</textarea>
-                         <fieldset class="mt-4 border p-3 rounded md:col-span-2">
-                             <legend class="px-2 font-semibold">Serviços</legend>
-                             <div class="flex flex-wrap gap-x-6 gap-y-2">
-                                 <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Banho" ${services.includes('Banho') ? 'checked' : ''}> Banho</label>
-                                 <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Creche" ${services.includes('Creche') ? 'checked' : ''}> Creche</label>
-                                 <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Hotel" ${services.includes('Hotel') ? 'checked' : ''}> Hotel</label>
-                                 <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Clinica" ${services.includes('Clinica') ? 'checked' : ''}> Clinica</label>
-                                 <label class="flex items-center gap-2"><input type="checkbox" name="services" value="Outros" ${services.includes('Outros') ? 'checked' : ''}> Outros</label>
-                             </div>
-                         </fieldset>
-                    </div>
-                    ${isEditing ? `<fieldset class="mt-4 border p-3 rounded"><legend class="px-2 font-semibold">Agendar Datas</legend><div id="calendar-container"></div></fieldset>` : ''}
-                    <div class="mt-6 flex justify-between items-center">
-                        <div>${isEditing ? `<button type="button" id="delete-pet-btn" class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"><i class="fa-solid fa-trash"></i></button>` : ''}</div>
-                        <div class="flex gap-3">
-                           <button type="button" id="modal-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
-                           <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Salvar</button>
-                        </div>
-                    </div>
-                </form>`;
-            openModal(modalHTML);
-
-            document.getElementById('modal-cancel-btn').onclick = closeModal;
-
-            if (isEditing) {
-                renderCalendar('calendar-container', pet, scheduledDates);
-                document.getElementById('delete-pet-btn').addEventListener('click', () => deletePet(pet));
+        // --- LÓGICA DE IMPORTAÇÃO DE PLANILHA (CSV) ---
+        async function handleCsvFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
             }
-            document.getElementById('pet-form').addEventListener('submit', (e) => savePet(e, pet, isEditing));
-        }
 
-        async function savePet(e, pet, isEditing) {
-            e.preventDefault();
-            const form = e.target;
-            const saveButton = form.querySelector('button[type="submit"]');
-            const originalButtonText = saveButton.innerHTML;
-            saveButton.disabled = true;
-            saveButton.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Salvando...`;
+            const importBtn = document.getElementById('import-csv-btn');
+            importBtn.disabled = true;
+            importBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processando...`;
 
-            const formData = new FormData(form);
-            const services = Array.from(form.querySelectorAll('input[name="services"]:checked')).map(cb => cb.value);
-
-            const petData = {
-                petName: formData.get('petName'),
-                tutorName: formData.get('tutorName'),
-                phone: formData.get('phone'),
-                address: formData.get('address'),
-                defaultRoute: formData.get('defaultRoute'),
-                services: services
-            };
-            
-            try {
-                if (isEditing) {
-                    await setDoc(doc(db, "pets", pet.id), petData, { merge: true });
-                } else {
-                    await addDoc(collection(db, "pets"), petData);
-                }
-                closeModal();
-            } catch (error) { 
-                console.error("Erro ao salvar pet:", error);
-                openInfoModal("Ocorreu um erro ao salvar a ficha do pet.", "Erro");
-            } finally {
-                saveButton.disabled = false;
-                saveButton.innerHTML = originalButtonText;
-            }
-        }
-
-        function deletePet(pet) {
-            openConfirmationModal(`Tem a certeza que quer apagar a ficha de ${pet.petName}? Esta ação não pode ser desfeita.`, async () => {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const text = e.target.result;
                 try {
-                    await deleteDoc(doc(db, "pets", pet.id));
-                    closeModal();
-                } catch (error) { 
-                    console.error("Erro ao apagar pet:", error);
-                    openInfoModal("Ocorreu um erro ao apagar a ficha do pet.", "Erro");
-                }
-            });
-        }
-        
-        function renderCalendar(containerId, pet, scheduledDates) {
-            const container = document.getElementById(containerId);
-            let date = new Date();
-            function draw() {
-                container.innerHTML = `<div class="flex items-center justify-between mb-2"><button id="prev-month" class="px-2 py-1">&lt;</button><h3 class="font-bold">${date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</h3><button id="next-month" class="px-2 py-1">&gt;</button></div><div class="grid grid-cols-7 gap-1 text-center text-xs"><div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div></div><div id="calendar-days" class="grid grid-cols-7 gap-1 text-center"></div>`;
-                const daysContainer = document.getElementById('calendar-days');
-                const month = date.getMonth(), year = date.getFullYear();
-                const firstDay = new Date(year, month, 1).getDay();
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                for (let i = 0; i < firstDay; i++) { daysContainer.innerHTML += `<div></div>`; }
-                for (let i = 1; i <= daysInMonth; i++) {
-                    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-                    const isSelected = scheduledDates.includes(dayStr);
-                    daysContainer.innerHTML += `<div class="p-1 calendar-day cursor-pointer ${isSelected ? 'selected-date' : ''}" data-date="${dayStr}">${i}</div>`;
-                }
-                document.getElementById('prev-month').onclick = () => { date.setMonth(date.getMonth() - 1); draw(); };
-                document.getElementById('next-month').onclick = () => { date.setMonth(date.getMonth() + 1); draw(); };
-                document.querySelectorAll('.calendar-day').forEach(day => day.onclick = () => toggleSchedule(pet, day.dataset.date));
-            }
-            draw();
-        }
-
-        async function toggleSchedule(pet, dateStr) {
-            const petRef = doc(db, "pets", pet.id);
-            await runTransaction(db, async (transaction) => {
-                const petDoc = await transaction.get(petRef);
-                const scheduleRef = doc(db, "schedules", dateStr);
-                const scheduleDoc = await transaction.get(scheduleRef);
-                let petSchedules = petDoc.data()?.scheduledDates || [];
-                let scheduleData = scheduleDoc.exists() ? scheduleDoc.data() : { routes: {} };
-                const route = pet.defaultRoute;
-                if (!scheduleData.routes[route]) scheduleData.routes[route] = { pets: [], groups: {}, observations: [] };
-                
-                const isScheduled = petSchedules.includes(dateStr);
-                const petInScheduleIndex = scheduleData.routes[route].pets.findIndex(p => p.id === pet.id);
-
-                if (isScheduled) {
-                    petSchedules = petSchedules.filter(d => d !== dateStr);
-                    if (petInScheduleIndex > -1) {
-                        scheduleData.routes[route].pets.splice(petInScheduleIndex, 1);
+                    const rows = text.split('\n').filter(row => row.trim() !== '');
+                    if (rows.length < 2) {
+                        throw new Error("O ficheiro CSV está vazio ou não tem cabeçalho.");
                     }
-                } else {
-                    petSchedules.push(dateStr);
-                    if (petInScheduleIndex === -1) {
-                        scheduleData.routes[route].pets.push({ id: pet.id, status: 'pendente' });
+                    
+                    const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                    const petNameIndex = headers.indexOf('Nome do Pet');
+                    const routeIndex = headers.indexOf('Rota Selecionada');
+
+                    if (petNameIndex === -1 || routeIndex === -1) {
+                        throw new Error("O ficheiro CSV deve conter as colunas 'Nome do Pet' e 'Rota Selecionada'.");
                     }
+
+                    const petsToImport = [];
+                    for (let i = 1; i < rows.length; i++) {
+                        const values = rows[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                        const petName = values[petNameIndex];
+                        const route = values[routeIndex];
+                        if (petName && route) {
+                            petsToImport.push({ name: petName, route: route });
+                        }
+                    }
+
+                    if (petsToImport.length === 0) {
+                        openInfoModal("Nenhum pet encontrado no ficheiro para importar.", "Aviso");
+                        return;
+                    }
+                    
+                    const dateStr = document.getElementById('manual-painel-date-filter').value;
+                    const updatePayload = {};
+                    const newRoutes = new Set();
+
+                    petsToImport.forEach(pet => {
+                        const routeName = pet.route;
+                        if (!routeName) return;
+
+                        if (!AppState.config.manualRoutes.includes(routeName)) {
+                            newRoutes.add(routeName);
+                        }
+
+                        const updatePath = `routes.${routeName}.pets`;
+                        if (!updatePayload[updatePath]) {
+                            updatePayload[updatePath] = [];
+                        }
+                        updatePayload[updatePath].push({ id: crypto.randomUUID(), name: pet.name });
+                    });
+
+                    if (newRoutes.size > 0) {
+                        const updatedRoutes = [...(AppState.config.manualRoutes || []), ...Array.from(newRoutes)];
+                        await updateDoc(doc(db, 'settings', 'app_config'), { manualRoutes: updatedRoutes });
+                    }
+                    
+                    const finalUnionPayload = {};
+                    for (const path in updatePayload) {
+                        finalUnionPayload[path] = arrayUnion(...updatePayload[path]);
+                    }
+
+                    if (Object.keys(finalUnionPayload).length > 0) {
+                        await updateManualSchedule(dateStr, finalUnionPayload);
+                        openInfoModal(`${petsToImport.length} pet(s) importado(s) com sucesso e distribuído(s) nas suas respectivas rotas!`, "Sucesso");
+                    } else {
+                        openInfoModal("Nenhum pet com rota válida foi encontrado para importar.", "Aviso");
+                    }
+
+                } catch (error) {
+                    console.error("Erro ao processar o ficheiro CSV:", error);
+                    openInfoModal(`Erro ao processar o ficheiro: ${error.message}`, "Erro de Importação");
+                } finally {
+                    importBtn.disabled = false;
+                    importBtn.innerHTML = `<i class="fa-solid fa-file-csv mr-2"></i>Importar Planilha (CSV)`;
+                    event.target.value = '';
                 }
-                transaction.update(petRef, { scheduledDates: petSchedules });
-                transaction.set(scheduleRef, scheduleData, { merge: true });
-            });
-            openPetModal(pet);
+            };
+            reader.readAsText(file);
         }
 
-        function setupPainelTab() {
-            const dateFilter = document.getElementById('painel-date-filter');
-            dateFilter.valueAsDate = new Date();
-            dateFilter.addEventListener('change', loadScheduleForDate);
-            document.getElementById('painel-route-filter').addEventListener('change', renderKanbanBoard);
-            loadScheduleForDate();
-        }
-        
-        function loadScheduleForDate() {
-            const dateStr = document.getElementById('painel-date-filter').value;
-            if (!dateStr) { document.getElementById('kanban-board').innerHTML = ''; return; }
-            onSnapshot(doc(db, "schedules", dateStr), (doc) => {
-                AppState.schedules.automatic = doc.exists() ? { id: doc.id, ...doc.data() } : null;
-                renderKanbanBoard();
-            });
-        }
-
-        function renderKanbanBoard() {
-            const board = document.getElementById('kanban-board');
-            const routeFilter = document.getElementById('painel-route-filter').value;
-            const routes = ["Rota 1", "Rota 2", "Rota 3", "Avulso"];
-            board.innerHTML = '';
-            routes.filter(r => routeFilter === 'all' || r === routeFilter).forEach(routeName => {
-                const column = document.createElement('div');
-                const routeId = routeName.replace(/\s+/g, '-');
-                column.id = `column-${routeId}`;
-                column.className = 'kanban-column bg-gray-200 dark:bg-gray-800 rounded-lg p-3 flex flex-col gap-3';
-                column.innerHTML = `<h3 class="font-bold text-lg">${routeName}</h3><div class="flex gap-2"><button class="group-btn flex-1 text-sm py-1 px-2 rounded bg-blue-500 text-white" data-route="${routeName}">Agrupar</button><button class="add-obs-btn flex-1 text-sm py-1 px-2 rounded bg-green-500 text-white" data-route="${routeName}">OBS</button></div><div id="obs-container-${routeId}" class="space-y-1 text-xs"></div><div id="pets-container-${routeId}" class="space-y-3 flex-grow"></div>`;
-                board.appendChild(column);
-                renderKanbanColumnContent(routeName, AppState.schedules.automatic?.routes?.[routeName] || {});
-            });
-        }
-        
-        function renderKanbanColumnContent(routeName, routeData) {
-            const routeId = routeName.replace(/\s+/g, '-');
-            const obsContainer = document.getElementById(`obs-container-${routeId}`), petsContainer = document.getElementById(`pets-container-${routeId}`);
-            obsContainer.innerHTML = '';
-            (routeData.observations || []).forEach(obs => {
-                const obsEl = document.createElement('div');
-                obsEl.className = 'bg-yellow-100 dark:bg-yellow-900 p-1.5 rounded-md flex justify-between items-center';
-                obsEl.innerHTML = `<span>${obs.text}</span> <i class="fa-solid fa-trash-can cursor-pointer text-red-500 hover:text-red-700"></i>`;
-                obsEl.querySelector('i').onclick = () => deleteObservation(routeName, obs.id);
-                obsContainer.appendChild(obsEl);
-            });
-            petsContainer.innerHTML = '';
-            const petsInRoute = (routeData.pets || []).map(p => ({ ...p, ...AppState.pets.find(ap => ap.id === p.id) })).filter(p => p.petName);
-            
-            (routeData.groups ? Object.entries(routeData.groups) : []).forEach(([groupId, groupData]) => {
-                const groupContainer = document.createElement('div');
-                groupContainer.className = 'group-container p-2 rounded-lg bg-gray-300 dark:bg-gray-900';
-                const gridClass = routeName === 'Avulso' ? 'space-y-2' : 'grid grid-cols-2 gap-2';
-                groupContainer.innerHTML = `<div class="flex justify-between items-center mb-2"><h4 class="font-bold">${groupData.name}</h4><div class="flex gap-2"><button class="edit-group-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button><button class="ungroup-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-sign-out-alt"></i></button></div></div><div class="${gridClass} group-pets-container"></div>`;
-                petsContainer.appendChild(groupContainer);
-                const groupPetsContainer = groupContainer.querySelector('.group-pets-container');
-                petsInRoute.filter(p => p.groupId === groupId).forEach(p => groupPetsContainer.appendChild(createKanbanPetCard(p, routeName, true)));
-            });
-            
-            const ungroupedTitle = document.createElement('h4');
-            ungroupedTitle.className = 'text-sm font-semibold mt-4';
-            ungroupedTitle.textContent = 'Não Agrupados';
-            petsContainer.appendChild(ungroupedTitle);
-            
-            const ungroupedContainer = document.createElement('div');
-            ungroupedContainer.className = routeName === 'Avulso' ? 'space-y-2' : 'grid grid-cols-2 gap-2';
-            petsContainer.appendChild(ungroupedContainer);
-
-            petsInRoute.filter(p => !p.groupId).forEach(p => ungroupedContainer.appendChild(createKanbanPetCard(p, routeName, false)));
-            
-            document.querySelectorAll('.group-btn').forEach(b => b.onclick = () => toggleGroupingMode(b.dataset.route, b));
-            document.querySelectorAll('.add-obs-btn').forEach(b => b.onclick = () => openObservationModal(b.dataset.route));
-            document.querySelectorAll('.edit-group-btn').forEach(b => b.onclick = () => toggleEditGroupMode(b.dataset.routeName, b.dataset.groupId, b));
-            document.querySelectorAll('.ungroup-btn').forEach(b => b.onclick = () => unGroup(b.dataset.routeName, b.dataset.groupId));
-        }
-
-        function createKanbanPetCard(pet, routeName, isGrouped) {
-            const card = document.createElement('div');
-            const serviceClass = getServiceColorClass(pet.services);
-            
-            let statusClass = '';
-            if (pet.status === 'buscando') statusClass = 'status-bg-buscando';
-            else if (pet.status === 'coletado') statusClass = 'status-bg-coletado';
-
-            card.className = `kanban-pet-card rounded-lg p-2 shadow flex justify-between items-center cursor-pointer ${isGrouped ? 'group-pet' : 'ungrouped-pet-card'} ${statusClass || serviceClass}`;
-            card.dataset.petId = pet.id;
-            
-            let html = `<div class="flex flex-col"><h4 class="font-bold text-sm">${pet.petName}</h4></div><div class="flex items-center gap-1"><button class="add-to-group-btn text-green-500" data-pet-id="${pet.id}"><i class="fa-solid fa-plus-circle"></i></button><button class="remove-from-group-btn text-red-500" data-pet-id="${pet.id}"><i class="fa-solid fa-minus-circle"></i></button>`;
-            if (routeName === 'Avulso') html += `<button class="status-btn text-xs px-1.5 py-0.5 rounded bg-yellow-500 text-white" data-status="buscando">B</button><button class="status-btn text-xs px-1.5 py-0.5 rounded bg-green-500 text-white" data-status="coletado">C</button><button class="status-btn text-xs px-1.5 py-0.5 rounded bg-gray-500 text-white" data-status="pendente">R</button>`;
-            html += '</div>';
-            card.innerHTML = html;
-
-            card.addEventListener('click', (e) => {
-                const column = e.currentTarget.closest('.kanban-column');
-                if (e.target.closest('button') || column.classList.contains('selection-mode') || column.classList.contains('edit-mode-active')) {
-                    return;
-                }
-                openKanbanPetDetailsModal(pet);
-            });
-            
-            card.querySelectorAll('.status-btn').forEach(b => b.onclick = () => setPetStatus(pet.id, routeName, b.dataset.status));
-            return card;
-        }
-        
-        function openKanbanPetDetailsModal(pet) {
-            if (!pet || !pet.petName) return;
-            const servicesHTML = pet.services && pet.services.length > 0 
-                ? pet.services.map(s => `<span class="bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-full text-xs font-medium">${s}</span>`).join(' ')
-                : '<span class="text-xs text-gray-500">Nenhum serviço</span>';
-
-            const modalHTML = `
-                <div class="flex justify-between items-start">
-                    <h2 class="text-3xl font-bold mb-4">${pet.petName}</h2>
-                    <button id="modal-close-btn" class="text-2xl">&times;</button>
-                </div>
-                <div class="space-y-4 mt-4 text-left">
-                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Tutor</h3><p class="text-lg">${pet.tutorName || 'Não informado'}</p></div>
-                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Telefone</h3><p class="text-lg">${pet.phone || 'Não informado'}</p></div>
-                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Endereço</h3><p class="text-lg">${pet.address || 'Não informado'}</p></div>
-                    <div class="p-2 border-b"><h3 class="font-semibold text-sm text-gray-500">Rota Padrão</h3><p class="text-lg">${pet.defaultRoute || 'Não informada'}</p></div>
-                    <div><h3 class="font-semibold text-sm text-gray-500">Serviços Agendados</h3><div class="flex flex-wrap gap-2 mt-1 p-2">${servicesHTML}</div></div>
-                </div>
-                <div class="mt-6 flex justify-end">
-                    <button id="modal-close-btn-2" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Fechar</button>
-                </div>`;
-            openModal(modalHTML);
-            document.getElementById('modal-close-btn').onclick = closeModal;
-            document.getElementById('modal-close-btn-2').onclick = closeModal;
-        }
-
-        function openObservationModal(routeName) {
-            const modalHTML = `
-                <h3 class="text-lg font-bold mb-4">Adicionar Observação para ${routeName}</h3>
-                <form id="obs-form">
-                    <textarea name="obs-text" class="w-full p-2 border rounded dark:bg-gray-700" placeholder="Digite a observação..."></textarea>
-                    <div class="mt-4 flex justify-end gap-2">
-                         <button type="button" id="modal-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white">Salvar</button>
-                    </div>
-                </form>
-            `;
-            openModal(modalHTML);
-            document.getElementById('modal-cancel-btn').onclick = closeModal;
-            document.getElementById('obs-form').addEventListener('submit', (e) => {
-                e.preventDefault();
-                const text = e.target['obs-text'].value;
-                if(text) saveObservation(routeName, text);
-                closeModal();
-            });
-        }
-
-        async function updateSchedule(updateFn) {
-            if (!AppState.schedules.automatic) return;
-            const scheduleRef = doc(db, "schedules", AppState.schedules.automatic.id);
-            await runTransaction(db, async transaction => {
-                const scheduleDoc = await transaction.get(scheduleRef);
-                const scheduleData = scheduleDoc.exists() ? scheduleDoc.data() : { routes: {} };
-                const newScheduleData = updateFn(scheduleData);
-                transaction.set(scheduleRef, newScheduleData);
-            });
-        }
-        
-        async function setPetStatus(petId, routeName, newStatus) { await updateSchedule(data => { const petIndex = data.routes[routeName].pets.findIndex(p => p.id === petId); if (petIndex > -1) data.routes[routeName].pets[petIndex].status = newStatus; return data; }); }
-        async function saveObservation(routeName, text) { await updateSchedule(data => { if (!data.routes[routeName].observations) data.routes[routeName].observations = []; data.routes[routeName].observations.push({ id: crypto.randomUUID(), text }); return data; }); }
-        async function deleteObservation(routeName, obsId) { await updateSchedule(data => { data.routes[routeName].observations = data.routes[routeName].observations.filter(o => o.id !== obsId); return data; }); }
-        function toggleGroupingMode(routeName, btn) {
-            const column = btn.closest('.kanban-column');
-            column.classList.toggle('selection-mode');
-            if(column.classList.contains('selection-mode')) {
-                btn.textContent = 'Criar Remessa';
-                btn.onclick = () => createRemessa(routeName, btn);
-                column.querySelectorAll('.ungrouped-pet-card').forEach(card => card.onclick = () => { card.classList.toggle('selected-for-grouping'); const petId = card.dataset.petId; if(AppState.ui.selectedForGrouping.includes(petId)) AppState.ui.selectedForGrouping = AppState.ui.selectedForGrouping.filter(id => id !== petId); else AppState.ui.selectedForGrouping.push(petId); });
-            } else {
-                btn.textContent = 'Agrupar';
-                AppState.ui.selectedForGrouping = [];
-                column.querySelectorAll('.kanban-pet-card').forEach(card => card.classList.remove('selected-for-grouping'));
-                btn.onclick = () => toggleGroupingMode(routeName, btn);
-            }
-        }
-        function createRemessa(routeName, btn) {
-            if (AppState.ui.selectedForGrouping.length === 0) { openInfoModal('Selecione pelo menos um pet!'); return; }
-            const modalHTML = `<h3 class="text-lg font-bold mb-4">Nome da Remessa</h3><form id="group-form"><input name="group-name" class="w-full p-2 border rounded dark:bg-gray-700" placeholder="Ex: Manhã - Zona Sul"><div class="mt-4 flex justify-end"><button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white">Criar</button></div></form>`;
-            openModal(modalHTML);
-            document.getElementById('group-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const groupName = e.target['group-name'].value; if(!groupName) return;
-                const groupId = crypto.randomUUID();
-                await updateSchedule(data => {
-                    if (!data.routes[routeName].groups) data.routes[routeName].groups = {};
-                    data.routes[routeName].groups[groupId] = { name: groupName };
-                    AppState.ui.selectedForGrouping.forEach(petId => { const petIndex = data.routes[routeName].pets.findIndex(p => p.id === petId); if (petIndex > -1) data.routes[routeName].pets[petIndex].groupId = groupId; });
-                    return data;
-                });
-                AppState.ui.selectedForGrouping = [];
-                toggleGroupingMode(routeName, btn);
-                closeModal();
-            });
-        }
-        async function unGroup(routeName, groupId) { await updateSchedule(data => { delete data.routes[routeName].groups[groupId]; data.routes[routeName].pets.forEach(pet => { if(pet.groupId === groupId) delete pet.groupId; }); return data; }); }
-        
-        function toggleEditGroupMode(routeName, groupId, btn) {
-            const column = btn.closest('.kanban-column');
-            const groupContainer = btn.closest('.group-container');
-            
-            const isEditingNow = column.classList.contains('edit-mode-active');
-            
-            document.querySelectorAll('.edit-mode-active').forEach(c => c.classList.remove('edit-mode-active'));
-            document.querySelectorAll('.editing-this-group').forEach(g => g.classList.remove('editing-this-group'));
-            document.querySelectorAll('.edit-group-btn').forEach(b => b.innerHTML = `<i class="fa-solid fa-pencil"></i>`);
-            
-            if (!isEditingNow || groupContainer.dataset.editingGroupId !== groupId) {
-                 column.classList.add('edit-mode-active');
-                 groupContainer.classList.add('editing-this-group');
-                 groupContainer.dataset.editingGroupId = groupId;
-                 btn.innerHTML = `<i class="fa-solid fa-check"></i>`;
-
-                column.querySelectorAll('.ungrouped-pet-card .add-to-group-btn').forEach(addBtn => {
-                    addBtn.onclick = () => addPetToGroup(routeName, addBtn.dataset.petId, groupId);
-                });
-                groupContainer.querySelectorAll('.group-pet .remove-from-group-btn').forEach(removeBtn => {
-                    removeBtn.onclick = () => removePetFromGroup(routeName, removeBtn.dataset.petId);
-                });
-            }
-        }
-        async function addPetToGroup(routeName, petId, groupId) { await updateSchedule(data => { const idx = data.routes[routeName].pets.findIndex(p => p.id === petId); if(idx > -1) data.routes[routeName].pets[idx].groupId = groupId; return data; }); }
-        async function removePetFromGroup(routeName, petId) { await updateSchedule(data => { const idx = data.routes[routeName].pets.findIndex(p => p.id === petId); if(idx > -1) delete data.routes[routeName].pets[idx].groupId; return data; }); }
-
+        // --- ABA FROTA ---
         async function ensureFleetDataExists() {
             const vehicleNames = ["Strada", "Montana", "Fiorino"];
             for (const name of vehicleNames) {
@@ -1367,51 +1168,6 @@
                 });
             });
             openFleetModal(vehicleId);
-        }
-
-        // --- LÓGICA DE INTEGRAÇÃO DE AGENDAS EXTERNAS ---
-        async function importExternalAgendas() {
-            const importBtn = document.getElementById('import-agendas-btn');
-            importBtn.disabled = true;
-            importBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Importando...`;
-
-            const dateStr = document.getElementById('manual-painel-date-filter').value;
-            
-            try {
-                const user = auth.currentUser;
-                if (!user) {
-                    throw new Error("Utilizador não autenticado. Por favor, atualize a página e tente novamente.");
-                }
-                // Garante que o token de autenticação está atualizado antes da chamada
-                await user.getIdToken(true);
-
-                const importAgendasFn = httpsCallable(functions, 'importAgendas');
-                const result = await importAgendasFn({ date: dateStr });
-
-                const allImportedPets = result.data.agendamentos;
-
-                if (allImportedPets.length === 0) {
-                    openInfoModal("Nenhum agendamento com Táxi Dog encontrado para a data selecionada.", "Aviso");
-                } else {
-                    const routeName = "Importados do Dia";
-                    if (!(AppState.config.manualRoutes || []).includes(routeName)) {
-                        const updatedRoutes = [...(AppState.config.manualRoutes || []), routeName];
-                        await updateDoc(doc(db, 'settings', 'app_config'), { manualRoutes: updatedRoutes });
-                    }
-
-                    const petsToUnion = allImportedPets.map(p => ({ id: crypto.randomUUID(), name: p.name }));
-                    const updatePath = `routes.${routeName}.pets`;
-                    await updateManualSchedule(dateStr, { [updatePath]: arrayUnion(...petsToUnion) });
-                    openInfoModal(`${allImportedPets.length} agendamento(s) importado(s) com sucesso para a rota "${routeName}"!`, "Sucesso");
-                }
-
-            } catch (error) {
-                console.error("Erro ao chamar a Cloud Function:", error);
-                openInfoModal(`Erro ao importar: ${error.message}`, "Erro de Importação");
-            } finally {
-                importBtn.disabled = false;
-                importBtn.innerHTML = `<i class="fa-solid fa-download mr-2"></i>Importar Agendas`;
-            }
         }
 
     </script>
