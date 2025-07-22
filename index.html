@@ -78,6 +78,7 @@
                      <nav class="hidden md:flex items-center gap-2">
                          <button data-tab="manual_painel" class="nav-tab active-tab px-3 py-1 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"><i class="fa-solid fa-pen-ruler mr-2"></i>Painel Manual</button>
                          <button data-tab="frota" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-truck mr-2"></i>Frota</button>
+                         <button data-tab="enderecos" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-map-location-dot mr-2"></i>Endereços</button>
                          <button data-tab="config" class="nav-tab px-3 py-1 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700"><i class="fa-solid fa-gear mr-2"></i>Configurações</button>
                      </nav>
                  </div>
@@ -90,6 +91,7 @@
                  <nav class="flex justify-around items-center p-1">
                      <button data-tab="manual_painel" class="nav-tab active-tab flex-1 text-center py-2 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" title="Painel Manual"><i class="fa-solid fa-pen-ruler"></i></button>
                      <button data-tab="frota" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700" title="Frota"><i class="fa-solid fa-truck"></i></button>
+                     <button data-tab="enderecos" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700" title="Endereços"><i class="fa-solid fa-map-location-dot"></i></button>
                      <button data-tab="config" class="nav-tab flex-1 text-center py-2 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700" title="Configurações"><i class="fa-solid fa-gear"></i></button>
                  </nav>
              </div>
@@ -112,6 +114,36 @@
             <!-- ABA FROTA -->
             <div id="frota-tab" class="tab-content hidden p-2 md:p-4">
                  <div id="fleet-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+            </div>
+
+            <!-- ABA ENDEREÇOS -->
+            <div id="enderecos-tab" class="tab-content hidden p-2 md:p-4">
+                <div class="mb-4 flex flex-wrap items-center gap-4">
+                    <div class="relative flex-grow">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="fa-solid fa-search text-gray-400"></i>
+                        </span>
+                        <input type="text" id="address-search-input" placeholder="Pesquisar por pet, tutor, endereço ou CEP..." class="w-full bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg pl-10 pr-4 py-1.5">
+                    </div>
+                    <button id="add-address-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-1.5 rounded-lg"><i class="fa-solid fa-plus mr-2"></i>Adicionar Endereço</button>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                            <tr>
+                                <th scope="col" class="px-6 py-3">Pet</th>
+                                <th scope="col" class="px-6 py-3">Tutor</th>
+                                <th scope="col" class="px-6 py-3">Endereço</th>
+                                <th scope="col" class="px-6 py-3">CEP</th>
+                                <th scope="col" class="px-6 py-3">Observações</th>
+                                <th scope="col" class="px-6 py-3"><span class="sr-only">Ações</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="addresses-table-body">
+                            <!-- Linhas de endereço serão inseridas aqui via JS -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- ABA CONFIGURAÇÕES -->
@@ -211,6 +243,7 @@
             await ensureFleetDataExists();
             setupNavigation();
             setupFrotaTab();
+            setupEnderecosTab();
             setupConfigTab(); 
             setupManualPainelTab();
         }
@@ -464,7 +497,7 @@
             }
 
             routesToDisplay.forEach(routeName => {
-                const routeData = AppState.schedules.manual?.routes?.[routeName] || { pets: [], groups: {}, observations: [] };
+                const routeData = AppState.schedules.manual?.routes?.[routeName] || { pets: [], groups: [], observations: [] };
                 const column = document.createElement('div');
                 column.className = 'manual-kanban-column bg-gray-200 dark:bg-gray-800 rounded-lg p-3 flex flex-col gap-3';
                 column.dataset.routeName = routeName;
@@ -494,28 +527,34 @@
 
                 const petsContainer = column.querySelector('.manual-pets-container');
                 const allPetsInRoute = routeData.pets || [];
-                const allGroupsInRoute = routeData.groups || {};
+                
+                let allGroupsInRoute = routeData.groups || [];
+                if (allGroupsInRoute && !Array.isArray(allGroupsInRoute) && typeof allGroupsInRoute === 'object') {
+                    allGroupsInRoute = Object.entries(allGroupsInRoute).map(([id, data]) => ({ id, ...data }));
+                }
 
-                Object.entries(allGroupsInRoute).forEach(([groupId, groupData]) => {
+                allGroupsInRoute.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+
+                allGroupsInRoute.forEach(group => {
                     const groupContainer = document.createElement('div');
                     groupContainer.className = 'group-container p-2 rounded-lg bg-gray-300 dark:bg-gray-900';
                     groupContainer.innerHTML = `
                         <div class="flex justify-between items-center mb-2">
-                            <h4 class="font-bold">${groupData.name}</h4>
+                            <h4 class="font-bold">${group.name}</h4>
                             <div class="flex gap-2">
-                                <button class="edit-manual-group-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button>
-                                <button class="ungroup-manual-btn text-xs" data-group-id="${groupId}" data-route-name="${routeName}"><i class="fa-solid fa-sign-out-alt"></i></button>
+                                <button class="edit-manual-group-btn text-xs" data-group-id="${group.id}" data-route-name="${routeName}"><i class="fa-solid fa-pencil"></i></button>
+                                <button class="ungroup-manual-btn text-xs" data-group-id="${group.id}" data-route-name="${routeName}"><i class="fa-solid fa-sign-out-alt"></i></button>
                             </div>
                         </div>
-                        <div class="manual-group-pets-container space-y-2"></div>
+                        <div class="manual-group-pets-container space-y-2" data-group-id="${group.id}"></div>
                     `;
                     petsContainer.appendChild(groupContainer);
                     const groupPetsContainer = groupContainer.querySelector('.manual-group-pets-container');
-                    allPetsInRoute.filter(p => p.groupId === groupId).forEach(p => groupPetsContainer.appendChild(createManualKanbanPetCard(p, routeName, true)));
+                    allPetsInRoute.filter(p => p.groupId === group.id).forEach(p => groupPetsContainer.appendChild(createManualKanbanPetCard(p, routeName, true)));
                 });
 
                 const ungroupedContainer = document.createElement('div');
-                ungroupedContainer.className = 'ungrouped-pets-container space-y-2 mt-3'; // Classe específica para o container de não agrupados
+                ungroupedContainer.className = 'ungrouped-pets-container space-y-2 mt-3';
                 petsContainer.appendChild(ungroupedContainer);
                 allPetsInRoute.filter(p => !p.groupId).forEach(p => ungroupedContainer.appendChild(createManualKanbanPetCard(p, routeName, false)));
             });
@@ -526,7 +565,6 @@
             document.querySelectorAll('.edit-manual-group-btn').forEach(btn => btn.onclick = (e) => toggleEditManualGroupMode(e.currentTarget.dataset.routeName, e.currentTarget.dataset.groupId, e.currentTarget));
             document.querySelectorAll('.ungroup-manual-btn').forEach(btn => btn.onclick = (e) => unGroupManual(e.currentTarget.dataset.routeName, e.currentTarget.dataset.groupId));
             
-            // Inicializar o Drag-and-Drop
             const petContainers = board.querySelectorAll('.ungrouped-pets-container, .manual-group-pets-container');
             petContainers.forEach(container => {
                 new Sortable(container, {
@@ -680,7 +718,17 @@
                 toPets = [...(scheduleData.routes[toRouteName]?.pets || [])];
             }
             
-            toPets.splice(newIndex, 0, petToMove);
+            const movedPetData = { ...petToMove };
+            if (toList.classList.contains('ungrouped-pets-container')) {
+                delete movedPetData.groupId;
+            } else {
+                const newGroupId = toList.dataset.groupId;
+                if (newGroupId) {
+                    movedPetData.groupId = newGroupId;
+                }
+            }
+            
+            toPets.splice(newIndex, 0, movedPetData);
 
             if (fromRouteName === toRouteName) {
                 updatePayload[`routes.${toRouteName}.pets`] = toPets;
@@ -779,7 +827,7 @@
                 const groupId = crypto.randomUUID();
                 const dateStr = document.getElementById('manual-painel-date-filter').value;
                 
-                const currentRouteData = AppState.schedules.manual?.routes?.[routeName] || { pets: [], groups: {} };
+                const currentRouteData = AppState.schedules.manual?.routes?.[routeName] || { pets: [], groups: [] };
                 const currentPets = currentRouteData.pets;
                 
                 const updatedPets = currentPets.map(pet => {
@@ -789,11 +837,12 @@
                     return pet;
                 });
 
-                const groupPath = `routes.${routeName}.groups.${groupId}`;
+                const newGroup = { id: groupId, name: groupName, createdAt: serverTimestamp() };
+                const groupsPath = `routes.${routeName}.groups`;
                 const petsPath = `routes.${routeName}.pets`;
                 
                 await updateManualSchedule(dateStr, {
-                    [groupPath]: { name: groupName },
+                    [groupsPath]: arrayUnion(newGroup),
                     [petsPath]: updatedPets
                 });
 
@@ -821,15 +870,23 @@
                 return p;
             });
             
+            let groups = currentRouteData.groups || [];
+            if (groups && !Array.isArray(groups) && typeof groups === 'object') {
+                groups = Object.entries(groups).map(([id, data]) => ({ id, ...data }));
+            }
+            const groupToRemove = groups.find(g => g.id === groupId);
+
             const groupsPath = `routes.${routeName}.groups`;
             const petsPath = `routes.${routeName}.pets`;
-            const updatedGroups = { ...(currentRouteData.groups || {}) };
-            delete updatedGroups[groupId];
 
-            await updateManualSchedule(dateStr, {
-                [petsPath]: updatedPets,
-                [groupsPath]: updatedGroups
-            });
+            if (groupToRemove) {
+                await updateManualSchedule(dateStr, {
+                    [petsPath]: updatedPets,
+                    [groupsPath]: arrayRemove(groupToRemove)
+                });
+            } else {
+                 await updateManualSchedule(dateStr, { [petsPath]: updatedPets });
+            }
         }
 
         function toggleEditManualGroupMode(routeName, groupId, btn) {
@@ -967,6 +1024,154 @@
                 }
             };
             reader.readAsText(file);
+        }
+
+        // --- ABA ENDEREÇOS ---
+        function setupEnderecosTab() {
+            document.getElementById('add-address-btn').addEventListener('click', () => openAddEditAddressModal());
+
+            const searchInput = document.getElementById('address-search-input');
+            searchInput.addEventListener('input', (e) => renderAddressesList(e.target.value));
+
+            const addressesRef = collection(db, 'addresses');
+            onSnapshot(query(addressesRef), (snapshot) => {
+                AppState.addresses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderAddressesList(searchInput.value);
+            });
+        }
+
+        function renderAddressesList(filter = '') {
+            const tableBody = document.getElementById('addresses-table-body');
+            tableBody.innerHTML = '';
+            const searchTerm = filter.toLowerCase().trim();
+
+            const filteredAddresses = AppState.addresses.filter(addr => {
+                if (!searchTerm) return true;
+                return (
+                    addr.petName?.toLowerCase().includes(searchTerm) ||
+                    addr.tutorName?.toLowerCase().includes(searchTerm) ||
+                    addr.address?.toLowerCase().includes(searchTerm) ||
+                    addr.cep?.toLowerCase().includes(searchTerm)
+                );
+            });
+
+            if (filteredAddresses.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Nenhum endereço encontrado.</td></tr>`;
+                return;
+            }
+            
+            filteredAddresses.sort((a, b) => (a.petName || '').localeCompare(b.petName || ''));
+
+            filteredAddresses.forEach(addr => {
+                const row = document.createElement('tr');
+                row.className = 'bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600';
+                
+                const addressText = addr.address || '';
+                const encodedAddress = encodeURIComponent(addressText);
+                const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+                
+                const cepText = addr.cep || '';
+                const encodedCep = encodeURIComponent(cepText);
+                const cepGoogleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedCep}`;
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">${addr.petName || ''}</td>
+                    <td class="px-6 py-4">${addr.tutorName || ''}</td>
+                    <td class="px-6 py-4">
+                        ${addressText ? `<a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2">
+                            <i class="fa-solid fa-map-pin text-red-500"></i>
+                            <span>${addressText}</span>
+                        </a>` : ''}
+                    </td>
+                    <td class="px-6 py-4">
+                        ${cepText ? `<a href="${cepGoogleMapsUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2">
+                            <i class="fa-solid fa-location-crosshairs text-gray-500"></i>
+                            <span>${cepText}</span>
+                        </a>` : ''}
+                    </td>
+                    <td class="px-6 py-4">${addr.observations || ''}</td>
+                    <td class="px-6 py-4 text-right">
+                        <button class="font-medium text-blue-600 dark:text-blue-500 hover:underline mr-3 edit-address-btn" data-address-id="${addr.id}"><i class="fa-solid fa-pencil"></i></button>
+                        <button class="font-medium text-red-600 dark:text-red-500 hover:underline delete-address-btn" data-address-id="${addr.id}"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            document.querySelectorAll('.edit-address-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const address = AppState.addresses.find(a => a.id === btn.dataset.addressId);
+                    if(address) openAddEditAddressModal(address);
+                };
+            });
+            document.querySelectorAll('.delete-address-btn').forEach(btn => {
+                btn.onclick = () => {
+                    openConfirmationModal("Tem certeza que quer apagar este endereço?", () => {
+                        deleteAddress(btn.dataset.addressId);
+                    });
+                };
+            });
+        }
+
+        function openAddEditAddressModal(address = {}) {
+            const isEditing = !!address.id;
+            const modalHTML = `
+                <h3 class="text-lg font-bold mb-6">${isEditing ? 'Editar Endereço' : 'Adicionar Novo Endereço'}</h3>
+                <form id="address-form" class="space-y-4">
+                    <input type="hidden" name="id" value="${address.id || ''}">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Nome do Pet</label>
+                        <input name="petName" class="w-full p-2 border rounded dark:bg-gray-700" required value="${address.petName || ''}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Nome do Tutor</label>
+                        <input name="tutorName" class="w-full p-2 border rounded dark:bg-gray-700" value="${address.tutorName || ''}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Endereço</label>
+                        <input name="address" class="w-full p-2 border rounded dark:bg-gray-700" value="${address.address || 'Rua: '}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">CEP</label>
+                        <input name="cep" placeholder="Ex: 12345-678" class="w-full p-2 border rounded dark:bg-gray-700" value="${address.cep || ''}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Observações</label>
+                        <textarea name="observations" class="w-full p-2 border rounded dark:bg-gray-700">${address.observations || ''}</textarea>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-2">
+                        <button type="button" id="modal-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-600">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white">Salvar</button>
+                    </div>
+                </form>
+            `;
+            openModal(modalHTML);
+            document.getElementById('modal-cancel-btn').onclick = closeModal;
+            document.getElementById('address-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const addressData = Object.fromEntries(formData.entries());
+                saveAddress(addressData);
+                closeModal();
+            });
+        }
+
+        async function saveAddress(addressData) {
+            const { id, ...data } = addressData;
+            if (id) {
+                const addressRef = doc(db, 'addresses', id);
+                await updateDoc(addressRef, data);
+            } else {
+                await addDoc(collection(db, 'addresses'), {
+                    ...data,
+                    createdAt: serverTimestamp()
+                });
+            }
+        }
+
+        async function deleteAddress(addressId) {
+            const addressRef = doc(db, 'addresses', addressId);
+            await deleteDoc(addressRef);
         }
 
         // --- ABA FROTA ---
